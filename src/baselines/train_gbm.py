@@ -300,6 +300,9 @@ def train_and_evaluate_seed(model_key, best_params, config, seed,
     else:
         model.fit(X_train, y_train)
 
+    # Validation metrics select the seed; test metrics are reporting only.
+    val_preds = model.predict(X_val)
+    val_metrics = calculate_metrics(y_val, val_preds)
     preds = model.predict(X_test)
     metrics = calculate_metrics(y_test, preds)
 
@@ -320,7 +323,7 @@ def train_and_evaluate_seed(model_key, best_params, config, seed,
     plot_path = os.path.join(output_dir, f"{model_name}_evaluation_plots.png")
     create_evaluation_plots(y_test, preds, plot_path)
 
-    return metrics, model_path, model_name, output_dir
+    return val_metrics, metrics, model_path, model_name, output_dir
 
 
 def _convert_numpy(obj):
@@ -353,20 +356,20 @@ def multi_seed_evaluation(model_key, best_params, config,
 
     all_metrics = []
     all_paths = []
-    best_r2 = -float('inf')
+    best_validation_rmse = float('inf')
     best_info = {}
 
     for run_idx, seed in enumerate(seeds):
         print(f"\n--- Seed {run_idx+1}/{num_runs}: {seed} ---")
-        metrics, model_path, model_name, output_dir = train_and_evaluate_seed(
+        val_metrics, metrics, model_path, model_name, output_dir = train_and_evaluate_seed(
             model_key, best_params, config, int(seed),
             X_train, y_train, X_val, y_val, X_test, y_test, meta, soil_mode,
         )
         all_metrics.append(metrics)
         all_paths.append((model_path, model_name, output_dir))
 
-        if metrics['r2_score'] > best_r2:
-            best_r2 = metrics['r2_score']
+        if val_metrics['rmse'] < best_validation_rmse:
+            best_validation_rmse = val_metrics['rmse']
             best_info = {
                 'model_path': model_path,
                 'model_name': model_name,
