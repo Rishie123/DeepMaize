@@ -311,7 +311,7 @@ def train_and_evaluate_seed(model_key, best_params, config, seed,
     output_dir = os.path.join(output_base, baseline_name)
     os.makedirs(output_dir, exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     model_name = f"model_{timestamp}"
 
     model_path = os.path.join(output_dir, f"{model_name}.joblib")
@@ -419,7 +419,7 @@ def multi_seed_evaluation(model_key, best_params, config,
         yaml.dump(metadata, f, sort_keys=False)
 
     print(f"\n{'='*60}")
-    print(f"Best seed: {best_info['seed']}  |  R² = {best_r2:.4f}")
+    print(f"Best seed by validation RMSE: {best_info['seed']}  |  RMSE = {best_validation_rmse:.4f}")
     print(f"Mean test metrics (over {num_runs} seeds):")
     for k, v in mean_metrics.items():
         print(f"  {k}: {v:.4f} ± {std_metrics[k]:.4f}")
