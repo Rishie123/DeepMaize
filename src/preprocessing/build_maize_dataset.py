@@ -176,7 +176,7 @@ def _fit_transform_soil(
     scaler = StandardScaler().fit(
         train_values.transpose(0, 2, 1).reshape(-1, n_properties)
     )
-    for frame in frames.values():
+    for split, frame in frames.items():
         scaled_values = []
         for matrix in frame["soil_features_parsed"]:
             if not isinstance(matrix, np.ndarray):
