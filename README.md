@@ -34,6 +34,8 @@ pip install -r requirements.txt
 
 On Fedora/Linux, install any required GDAL/GEOS system libraries for GeoPandas and Rasterstats before installing the Python dependencies.
 
+For a concise definition of the CSV fields, feature order, tensor orientation, units/provenance requirements and attrition metadata, see [docs/DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md). The architecture and tensor dimensions are described in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## 2. District boundaries
 
 The weather and soil downloaders expect the Survey of India district boundary shapefile at:
