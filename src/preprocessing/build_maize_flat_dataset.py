@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 SOIL_FEATURES = [
-    "soil_organic_carbon", "soil_ph", "bulk_density", "sand_content",
+    "organic_carbon", "ph", "bulk_density", "sand_content",
     "silt_content", "clay_content", "cation_exchange_capacity",
     "total_nitrogen",
 ]
@@ -76,7 +76,7 @@ def flatten_split(
         for month_index in range(sequence.shape[0]):
             for feature_index, feature_name in enumerate(feature_names):
                 column = f"temporal_m{month_index + 1:02d}_{feature_name}"
-                record[column] = float(sequence[month_index, feature_index])
+                record[f"soil_{column}"] = float(sequence[month_index, feature_index])
 
         if soil_available:
             soil = _parse_nested(row["soil_features"], "soil_features")
