@@ -23,3 +23,9 @@ tqdm
 
 # Interpretability
 shap
+
+# Additional data-ingestion utilities
+requests
+rasterstats
+tqdm
+pytest
