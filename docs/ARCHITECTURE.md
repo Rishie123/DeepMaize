@@ -19,7 +19,7 @@ flowchart TD
   K --> L["Predicted maize yield"]
 ```
 
-`B` is batch size and `T` is the configured number of months. With the provisional June-November calendar, `T=7`. The 13 temporal features are expected to be eleven weather variables (nine NASA POWER variables plus two derived VPD variables) and two satellite vegetation variables (NDVI, EVI). The builder does not hard-code 13; the network input dimension is inferred from the generated data.
+`B` is batch size and `T` is the configured number of months. With the provisional June-December calendar, `T=7`. The 13 temporal features are expected to be eleven weather variables (nine NASA POWER variables plus two derived VPD variables) and two satellite vegetation variables (NDVI, EVI). The builder does not hard-code 13; the network input dimension is inferred from the generated data.
 
 ## Temporal branch
 
