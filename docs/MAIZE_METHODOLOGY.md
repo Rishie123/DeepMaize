@@ -52,7 +52,7 @@ The sequence builder expects one observation per district-month and retains only
 
 ## Splitting and leakage prevention
 
-Splits are chronological by sowing year and applied consistently across districts. The code defaults to train through 2017, validation 2018–2021, and test 2022 onward. These cutoffs are configurable and must be reconciled with actual data coverage before use.
+Splits are chronological by sowing year and applied consistently across districts. The code defaults to train through 2018, validation 2019–2021, and test 2022 onward, matching the reference paper's year split. Adjust these cutoffs to the maize yield data coverage before running the experiment. These cutoffs are configurable and must be reconciled with actual data coverage before use.
 
 Temporal and lagged-yield scalers are fitted on training records only. Soil scaling is fitted on training districts only. Validation is used for early stopping and model selection. The test set must not be used to select checkpoints, hyperparameters, random seeds or feature sets.
 
