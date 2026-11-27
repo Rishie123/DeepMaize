@@ -1,70 +1,240 @@
-# DeepWheat
+# DeepMaize
 
-District-level winter wheat yield forecasting across India using weather, satellite, soil, and historical yield data.
+District-level **Kharif maize yield modelling** for Maharashtra, Madhya Pradesh and Chhattisgarh, adapted from the published DeepWheat multimodal yield-prediction implementation.
 
-[![Observed winter wheat yields, DeepWheat predictions, and prediction residuals across India](assets/wheat-yield-maps.png)](https://www.nature.com/articles/s41598-026-56576-5/figures/6)
+DeepMaize retains the reference model's multimodal design:
 
-*Observed yields, model predictions, and prediction errors for the 2023 sowing season (harvested April–May 2024). Figure 6 from [R. L., Punglia & Joshi, Scientific Reports (2026)](https://doi.org/10.1038/s41598-026-56576-5).*
+- **Temporal branch:** monthly meteorological and vegetation features enter a bidirectional LSTM.
+- **Temporal self-attention:** the sequence representation is weighted over the monthly hidden states.
+- **Soil branch:** an eight-property, six-depth SoilGrids matrix is processed by a 1D CNN.
+- **Lagged-yield input:** the previous sowing year's district yield is passed directly to the regression head.
+- **Regression head:** the branches are concatenated and mapped to one district-year yield prediction.
 
-Official implementation of ["A hybrid deep learning approach for winter wheat yield prediction: evidence from leveraging multi-source data"](https://doi.org/10.1038/s41598-026-56576-5) (*Scientific Reports*, 2026).
+The source paper is *A hybrid deep learning approach for winter wheat yield prediction: evidence from leveraging multi-source data*, *Scientific Reports* (2026), [doi:10.1038/s41598-026-56576-5](https://doi.org/10.1038/s41598-026-56576-5). The architecture is reused as a research starting point; maize-specific crop calendars, features, splits and performance must be validated independently. This repository does not claim that wheat-trained weights or reported wheat performance transfer to maize.
 
-The model forecasts district-level winter wheat yield across the Indian Wheat Belt by combining a soil-depth CNN branch with a temporal BiLSTM and self-attention branch, integrating soil properties, meteorological variables, vegetation indices, and lagged yield.
+## Current status
 
-This repository contains the implementation and a featured result from the paper. Datasets, trained checkpoints, HPO studies, and additional paper figures live in a companion Hugging Face repository and are fetched with `hf_sync.sh`.
+The repository contains a separate maize data-preparation path, region-specific weather and SoilGrids downloaders, training configurations for soil and no-soil variants, methodology documentation and automated unit tests.
 
-## Setup
+**No raw maize yield, MODIS or district-boundary dataset is bundled. No maize model has yet been trained or empirically validated.** The default June-November window is a provisional Kharif example, not a claim that every district in all three states shares one crop calendar. Confirm crop timing and prediction cutoff with agronomic data before making forecasts.
+
+## 1. Environment
+
+Use Python 3.10 or newer.
 
 ```bash
-git clone https://github.com/pungyman/DeepWheat.git
-cd DeepWheat
-python -m venv venv && source venv/bin/activate
+git clone https://github.com/Rishie123/DeepMaize.git
+cd DeepMaize
+git checkout deepmaize-kharif
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Training runs on CPU, CUDA, or Apple Metal, depending on the installed PyTorch build; training and SHAP attribution are substantially faster on CUDA.
+On Fedora/Linux, install any required GDAL/GEOS system libraries for GeoPandas and Rasterstats before installing the Python dependencies.
 
-## Artifacts
+## 2. District boundaries
+
+The weather and soil downloaders expect the Survey of India district boundary shapefile at:
+
+`data/district_boundary_data/survey_of_india/DISTRICT_BOUNDARY.shp`
+
+The expected fields are `STATE_UT` and `DISTRICT`. The code filters the uppercase state labels:
+
+- `MAHARASHTRA`
+- `MADHYA PRADESH`
+- `CHHATTISGARH`
+
+The generated join key is `STATE_DISTRICT`, with both parts uppercased, for example `MAHARASHTRA_NAGPUR`.
+
+District names and boundaries change over time. Before joining APY yields to modern district polygons, prepare and inspect an explicit district-name / boundary-vintage crosswalk. Do not assume that string normalisation alone resolves historical district splits or renamed districts.
+
+## 3. Weather data: NASA POWER
+
+From the weather data directory:
 
 ```bash
-pip install -U "huggingface_hub[cli]"
-hf auth login
-./hf_sync.sh pull        # also: pull-data, push-models
+cd data/weather_data
+python fetch_all_districts.py
+python wrangle.py --input NASA_POWER_Central_India_20000101_20241231.csv \
+  --output weather_data_central_india.csv
+python derive_features.py
+cd ../..
 ```
 
-This syncs `data/datasets/final/` and `data/datasets/rf_flat/` (sequence and flattened datasets), `src/rnn/saved_models/` (checkpoints and metadata), and `experiments/hpo/` (Optuna studies).
+The downloader requests the nine NASA POWER variables used in the reference feature set: `T2M_MAX`, `T2M_MIN`, `T2M`, `PRECTOTCORR`, `RH2M`, `ALLSKY_SFC_SW_DWN`, `WS10M`, `QV2M` and `PS`. It converts the NASA `-999` missing-value sentinel to NaN.
 
-## Usage
+The feature script adds `max_vpd` and `min_vpd`, giving eleven meteorological features. VPD is derived from maximum/minimum temperature and relative humidity using the saturation-vapour-pressure calculation documented in the paper.
 
-Main model, from `src/rnn`:
+The downloader currently requests 1 January 2000 through 31 December 2024, matching the inherited input period. Adjust this range to match actual maize yield and satellite coverage.
+
+## 4. Soil data: SoilGrids
+
+From the soil data directory:
+
+```bash
+cd data/soilgrids
+python fetch_soil_data.py
+python wrangle.py
+cd ../..
+```
+
+The downloader retrieves the district mean for the eight reference-paper properties at six depths:
+
+1. Soil organic carbon
+2. Soil pH
+3. Bulk density
+4. Sand content
+5. Silt content
+6. Clay content
+7. Cation-exchange capacity
+8. Total nitrogen
+
+Depth order is 0–5, 5–15, 15–30, 30–60, 60–100 and 100–200 cm. The wrangler writes a single `soil_features` matrix per district with shape `[8, 6]`, in the explicit property/depth order above. It fails on incomplete/non-finite matrices instead of silently changing the input structure.
+
+The downloader uses the district boundary file's CRS and requests WCS layers in EPSG:4326. Check the source service's current coverage availability and units before interpreting or comparing soil values.
+
+## 5. Vegetation features: MODIS NDVI/EVI
+
+Prepare a CSV from the MODIS/GEE workflow with one observation per district/date and at least these columns:
+
+```text
+DISTRICT_ID,date,NDVI,EVI
+```
+
+The `DISTRICT_ID` values must use the same uppercase `STATE_DISTRICT` convention as weather and soil. Apply the appropriate MODIS quality flags and scale factors before producing the input file. This repository's monthly builder does not replace satellite quality filtering.
+
+The monthly builder uses an **outer** date join so daily weather dates are not discarded merely because a MODIS composite is not dated on the same day:
+
+```bash
+python data/weather_data/get_maize_monthly_features.py \
+  --weather data/weather_data/weather_features_central_india.csv \
+  --vegetation data/remote_sensing_data/maize_ndvi_evi_central_india.csv \
+  --output data/processed/maize_monthly_features.csv
+```
+
+Monthly means are calculated independently for every feature. A feature with no valid observation in a month remains missing; the dataset builder then excludes that incomplete district-season sequence. This is deliberate and should be reviewed in the data-coverage report before modelling.
+
+The resulting default temporal input contains eleven weather features plus NDVI and EVI (thirteen features total), matching the reference paper's feature families.
+
+## 6. Prepare Kharif maize yield labels
+
+The yield-preparation script expects a **long-format** APY-style CSV containing:
+
+```text
+State,District,Crop,Season,Year,Yield
+```
+
+Column names can be changed using CLI options. The script filters Kharif maize for the three target states, parses the first year from values such as `2019-20`, normalises the district key, and writes:
+
+```text
+DISTRICT_ID,sowing_year,Yield
+```
+
+Example:
+
+```bash
+python data/yield_data/prepare_maize_yield.py \
+  --input data/yield_data/source_apy_long.csv \
+  --output data/yield_data/maize_kharif_central_india.csv
+```
+
+The script preserves the source yield unit. Use `--yield-multiplier` only when you have confirmed a unit conversion, and record the source unit and conversion in your experiment notes. The script deliberately stops when multiple Kharif maize yield rows exist for one district-year; aggregate them using a documented method rather than silently averaging.
+
+## 7. Build leakage-safe model datasets
+
+Monthly input schema:
+
+```text
+DISTRICT_ID,YEAR,MONTH,<numeric feature columns>
+```
+
+Yield input schema:
+
+```text
+DISTRICT_ID,sowing_year,Yield
+```
+
+Optional soil input schema:
+
+```text
+DISTRICT_ID,soil_features
+```
+
+Build the default June-November example with the soil branch:
+
+```bash
+python src/preprocessing/build_maize_dataset.py \
+  --monthly data/processed/maize_monthly_features.csv \
+  --yields data/yield_data/maize_kharif_central_india.csv \
+  --soil data/soilgrids/downloaded_data_wcs/district_soil_data_central_india_wrangled.csv \
+  --output data/datasets/maize_kharif \
+  --months 6,7,8,9,10,11 \
+  --train-end 2018 --val-end 2021
+```
+
+For a no-soil experiment, omit the `--soil` argument.
+
+The builder:
+- requires one row per district/month and rejects duplicate keys;
+- retains only district-seasons with every configured month and finite feature values;
+- joins yield by exact `DISTRICT_ID` and `sowing_year`;
+- creates a lag only from the immediately preceding sowing year (it does not bridge missing years);
+- splits chronologically: training through 2018, validation 2019–2021, test 2022 onward by default;
+- fits temporal, lagged-yield and optional soil scalers using training data only;
+- writes train/validation/test CSVs, scaler objects and `metadata.json`.
+
+Split cutoffs must be adjusted when the available maize yield years differ from the paper's wheat period. Review `metadata.json`, split sizes and district coverage before training.
+
+## 8. Train the proposed model
+
+From `src/rnn`:
 
 ```bash
 cd src/rnn
-python train_model.py --config training_config.yaml
-python run_inference_all_splits.py --config training_config.yaml --model-dir saved_models/cnn_bilstm_self_attn
-python run_shap_analysis.py --config shap_config.yaml
+python train_model.py --config config/maize_central_india.yaml
 ```
 
-Baselines, from `src/baselines` — CNN, Transformer, and parallel CNN-LSTM via `train_cnn1d.py` / `train_transformer.py` / `train_parallel.py` with the matching `config/*.yaml`, and tree models on the flattened dataset:
+The soil-enabled config uses the CNN soil branch. For a model without soil input:
 
 ```bash
-cd src/baselines
-python train_cnn1d.py --config config/cnn1d_with_soil.yaml
-python train_gbm.py --model xgb --soil with --config config/xgb.yaml
+python train_model.py --config config/maize_central_india_no_soil.yaml
 ```
 
-Paper tables and figures are regenerated by the scripts in `src/analysis/` (e.g. `build_baseline_table.py`, `scatter_grid.py`, `feature_correlation.py`), which read saved metadata and prediction CSVs. Preprocessing can be rerun with `src/preprocessing/get_monthly_features.py` and `create_dataset.py` if the raw inputs are available.
+The YAML starts from the reference wheat paper's published proposed-model hyperparameters; these are **not maize-optimised**. Tune hyperparameters using the maize validation set only. The training script now selects the retained random-seed run by best validation loss, not test-set R². The test metrics are reported after validation-based checkpoint selection and are not used to choose the model.
 
-Several scripts use relative paths that assume they are launched from their own source directory. If a path is not found, run the command from that directory or adjust the YAML path constants.
+## 9. Reproducibility and testing
 
-## Data Sources
+The maize preprocessing tests can be run from the repository root:
 
-This repository provides code for assembling the modeling dataset but does not redistribute all raw inputs; users are responsible for each provider's terms. Weather features come from NASA POWER, soil properties from SoilGrids/ISRIC, and vegetation indices from MODIS/GEE workflows. District boundaries and yield statistics must be supplied under the relevant source licenses.
+```bash
+python -m compileall -q src data tests
+python -m pytest -q
+```
 
-## Citation
+GitHub Actions runs these checks on pushes to `deepmaize-kharif` and pull requests to the configured branches. These tests validate data-preparation mechanics using synthetic data; they do not validate actual maize yield accuracy, external data coverage or the remote download services.
 
-If you use this implementation, please cite:
+For every real experiment, retain:
+- the source URL/table and download date for yield, weather, vegetation and soil data;
+- yield units, district crosswalk and crop-calendar source;
+- the month window and forecast cutoff;
+- split years, data counts and dropped district-years;
+- package versions, random seeds, YAML configuration and model checkpoint;
+- MAE, RMSE and R², plus a persistence baseline using lagged yield.
 
-> R. L, M., Punglia, S. & Joshi, S. T. A hybrid deep learning approach for winter wheat yield prediction: evidence from leveraging multi-source data. *Sci Rep* **16**, 28538 (2026). https://doi.org/10.1038/s41598-026-56576-5
+## 10. Important research limitations
+
+- June-November is a starting Kharif window, not a validated universal calendar for all districts. Prediction availability must be stated relative to the last included month.
+- District-level means hide within-district variation in rainfall, soils, management and crop practices.
+- Historical district boundaries and yield reporting may not align with present-day polygons.
+- SoilGrids is static in this pipeline; it does not represent seasonal management or changing field conditions.
+- A lagged-yield feature is a strong persistence baseline. Report its performance separately so the incremental value of weather, satellite and soil information is clear.
+- The reference wheat study's benchmark scripts and HPO values are not evidence of maize performance. Benchmark configurations need to be run and tuned on the same maize splits before claiming a close empirical replication.
+
+## Reference paper
+
+R. L., M., Punglia, S. & Joshi, S. T. (2026). A hybrid deep learning approach for winter wheat yield prediction: evidence from leveraging multi-source data. *Scientific Reports*, 16, 28538. https://doi.org/10.1038/s41598-026-56576-5
 
 ```bibtex
 @article{rl2026hybrid,
@@ -75,8 +245,7 @@ If you use this implementation, please cite:
   number  = {1},
   pages   = {28538},
   year    = {2026},
-  doi     = {10.1038/s41598-026-56576-5},
-  url     = {https://doi.org/10.1038/s41598-026-56576-5}
+  doi     = {10.1038/s41598-026-56576-5}
 }
 ```
 
