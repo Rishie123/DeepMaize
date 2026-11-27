@@ -10,7 +10,7 @@ from sklearn.preprocessing import StandardScaler
 from src.preprocessing.build_maize_dataset import build_dataset
 from data.weather_data.get_maize_monthly_features import make_monthly_features
 from data.yield_data.prepare_maize_yield import prepare_yield
-from src.preprocessing.build_maize_flat_dataset import build_flat_datasets
+from src.preprocessing.build_maize_flat_dataset import build_flat_datasets, flatten_split
 from src.analysis.maize_persistence_baseline import evaluate_persistence
 
 
@@ -180,3 +180,25 @@ def test_persistence_baseline_inverse_transforms_lagged_yield(tmp_path: Path):
     assert np.allclose(predictions["persistence_prediction"], [5000.0, 6000.0])
     assert metrics["all_test_years"]["n"] == 2
     assert np.isclose(metrics["all_test_years"]["MAE"], 150.0)
+
+
+def test_flatten_split_preserves_all_48_soil_features(tmp_path: Path):
+    matrix = [[float(property_index * 10 + depth_index)
+               for depth_index in range(6)]
+              for property_index in range(8)]
+    source = tmp_path / "sequence_with_soil.csv"
+    pd.DataFrame([{
+        "DISTRICT_ID": "MAHARASHTRA_NAGPUR",
+        "sowing_year": 2021,
+        "feature_sequence": str([[10.0, 0.4]]),
+        "past_yield": 0.2,
+        "Yield": 4800.0,
+        "soil_features": str(matrix),
+    }]).to_csv(source, index=False)
+
+    out_path = tmp_path / "flat_with_soil.csv"
+    flattened = flatten_split(source, out_path, ["rain", "NDVI"])
+    soil_columns = [column for column in flattened.columns if column.startswith("soil_")]
+    assert len(soil_columns) == 48
+    assert flattened.loc[0, "soil_soil_organic_carbon_0_5cm"] == 0.0
+    assert flattened.loc[0, "soil_total_nitrogen_100_200cm"] == 75.0
