@@ -7,7 +7,7 @@ from src.preprocessing.build_maize_dataset import _build_sequences, parse_months
 
 
 def test_default_months_are_kharif_example():
-    assert parse_months("6,7,8,9,10,11") == [6, 7, 8, 9, 10, 11]
+    assert parse_months("6,7,8,9,10,11,12") == [6, 7, 8, 9, 10, 11, 12]
 
 
 def test_sequences_assign_months_to_calendar_sowing_year():
