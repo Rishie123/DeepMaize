@@ -156,10 +156,13 @@ def _fit_transform_soil(
             soil[["DISTRICT_ID", "soil_features_parsed"]],
             on="DISTRICT_ID", how="left", validate="many_to_one"
         )
-    train_matrices = [
-        value for value in frames["train"]["soil_features_parsed"]
-        if isinstance(value, np.ndarray)
-    ]
+    # Soil is district-level and static in this design. Fit using each
+    # training district once, rather than weighting districts by the number
+    # of historical yield years they happen to contribute.
+    training_districts = set(frames["train"]["DISTRICT_ID"].unique())
+    train_matrices = soil.loc[
+        soil["DISTRICT_ID"].isin(training_districts), "soil_features_parsed"
+    ].tolist()
     if not train_matrices:
         raise ValueError("No soil matrices available for training districts")
     train_values = np.stack(train_matrices)
@@ -261,7 +264,10 @@ def build_dataset(
         "crop_calendar_months": months,
         "year_offset": year_offset,
         "feature_columns": feature_cols,
-        "soil_matrix_shape": list(next(iter(_parse_soil(v).shape for v in pd.read_csv(soil_path)["soil_features"]))) if soil_path else None,
+        "soil_matrix_shape": (
+            list(_parse_soil(pd.read_csv(soil_path).iloc[0]["soil_features"]).shape)
+            if soil_path is not None and not pd.read_csv(soil_path).empty else None
+        ),
         "soil_flat_dimension": soil_dim,
         "split_years": {
             "train": [int(x) for x in train_years],
