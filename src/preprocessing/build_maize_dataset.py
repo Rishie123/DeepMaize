@@ -15,7 +15,7 @@ Important design decisions
 --------------------------
 * Crop year is defined by sowing_year. A monthly observation is assigned to
   the calendar year in which it occurs. For the default monsoon calendar,
-  June-November belong to the same calendar-year Kharif season.
+  June-December belong to the same calendar-year Kharif season.
 * The crop calendar is configurable; do not assume every district has the
   same sowing/harvest dates without agronomic validation.
 * District-year sequences are retained only when every configured month is
@@ -60,7 +60,7 @@ def _build_sequences(
 ) -> tuple[pd.DataFrame, list[str]]:
     """Aggregate monthly rows into fixed-length district-season sequences.
 
-    year_offset is 0 for standard Kharif seasons: June-November of calendar
+    year_offset is 0 for standard Kharif seasons: June-December of calendar
     year Y are assigned to sowing_year Y. It is exposed for crop-calendar
     edge cases, but must be justified from the district-specific calendar.
     """
@@ -334,8 +334,8 @@ def main() -> None:
     parser.add_argument("--soil", type=Path, default=None,
                         help="Optional district soil feature CSV")
     parser.add_argument("--output", type=Path, default=Path("../../data/datasets/maize_kharif"))
-    parser.add_argument("--months", default="6,7,8,9,10,11",
-                        help="Comma-separated Kharif months; defaults to June-November")
+    parser.add_argument("--months", default="6,7,8,9,10,11,12",
+                        help="Comma-separated Kharif months; defaults to June-December")
     parser.add_argument("--train-end", type=int, default=2018)
     parser.add_argument("--val-end", type=int, default=2021)
     parser.add_argument("--year-offset", type=int, default=0)
