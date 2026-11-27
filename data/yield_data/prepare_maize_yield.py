@@ -17,12 +17,12 @@ TARGET_STATES = {"MAHARASHTRA", "MADHYA PRADESH", "CHHATTISGARH"}
 
 def normalise_label(series: pd.Series) -> pd.Series:
     """Uppercase text and collapse repeated whitespace for stable join keys."""
-    return series.astype(str).str.strip().str.upper().str.replace(r"\\s+", " ", regex=True)
+    return series.astype(str).str.strip().str.upper().str.replace(r"\s+", " ", regex=True)
 
 
 def extract_sowing_year(value: object) -> int:
     """Read the starting calendar year from e.g. 2019, 2019-20 or 2019-2020."""
-    match = re.match(r"^\\s*(\\d{4})", str(value))
+    match = re.match(r"^\s*(\d{4})", str(value))
     if not match:
         raise ValueError(f"Cannot parse sowing/season year from {value!r}")
     return int(match.group(1))
