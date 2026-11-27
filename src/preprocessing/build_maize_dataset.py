@@ -209,7 +209,18 @@ def build_dataset(
     if yields.duplicated(["DISTRICT_ID", "sowing_year"]).any():
         raise ValueError("Yield data has duplicate district/sowing_year rows")
 
+    # Capture attrition at each stage so incomplete inputs are visible in
+    # metadata rather than silently disappearing during inner joins.
+    monthly_selected = monthly[monthly["MONTH"].isin(months)].copy()
+    monthly_groups = list(monthly_selected.groupby(["DISTRICT_ID", "YEAR"]))
+    expected_months = set(months)
+    complete_month_groups = sum(
+        set(group["MONTH"].astype(int)) == expected_months
+        for _, group in monthly_groups
+    )
     sequences, feature_cols = _build_sequences(monthly, months, year_offset)
+    n_sequences = len(sequences)
+
     yields = yields.copy()
     yields["sowing_year"] = pd.to_numeric(yields["sowing_year"], errors="raise").astype(int)
     yields["Yield"] = pd.to_numeric(yields["Yield"], errors="coerce")
@@ -220,6 +231,7 @@ def build_dataset(
     labelled = labelled.dropna(subset=["Yield"]).sort_values(
         ["DISTRICT_ID", "sowing_year"]
     ).reset_index(drop=True)
+    n_labelled = len(labelled)
 
     # A lag is valid only if the immediately preceding sowing year exists.
     previous = labelled[["DISTRICT_ID", "sowing_year", "Yield"]].copy()
@@ -229,6 +241,7 @@ def build_dataset(
         previous, on=["DISTRICT_ID", "sowing_year"],
         how="left", validate="one_to_one"
     ).dropna(subset=["past_yield"]).reset_index(drop=True)
+    n_after_lag = len(labelled)
 
     years = sorted(labelled["sowing_year"].unique().tolist())
     train_years = [year for year in years if year <= train_end]
@@ -277,6 +290,26 @@ def build_dataset(
             if soil_path is not None and not pd.read_csv(soil_path).empty else None
         ),
         "soil_flat_dimension": soil_dim,
+        "data_quality": {
+            "monthly_input_rows": int(len(monthly)),
+            "monthly_rows_in_configured_window": int(len(monthly_selected)),
+            "candidate_district_year_groups": int(len(monthly_groups)),
+            "groups_with_all_configured_months": int(complete_month_groups),
+            "complete_finite_feature_sequences": int(n_sequences),
+            "yield_input_rows": int(len(yields)),
+            "district_years_with_matching_yield": int(n_labelled),
+            "district_years_with_exact_previous_year_yield": int(n_after_lag),
+            "rows_per_split": {
+                "train": int(len(frames["train"])),
+                "validation": int(len(frames["val"])),
+                "test": int(len(frames["test"])),
+            },
+            "districts_per_split": {
+                "train": int(frames["train"]["DISTRICT_ID"].nunique()),
+                "validation": int(frames["val"]["DISTRICT_ID"].nunique()),
+                "test": int(frames["test"]["DISTRICT_ID"].nunique()),
+            },
+        },
         "split_years": {
             "train": [int(x) for x in train_years],
             "validation": [int(x) for x in val_years],
