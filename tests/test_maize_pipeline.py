@@ -149,7 +149,7 @@ def test_flattened_tree_dataset_preserves_splits_and_feature_values(tmp_path: Pa
     train = pd.read_csv(output_dir / "train_rf_flat.csv")
     assert summary["split_rows"] == {"train": 1, "val": 1, "test": 1}
     assert train.loc[0, "temporal_m01_rain"] == 1.0
-    assert train.loc[0, "temporal_m02_NDVI"] == 0.3
+    assert np.isclose(train.loc[0, "temporal_m02_NDVI"], 0.3)
     assert train.loc[0, "past_yield"] == 0.5
     assert train.loc[0, "yield_value"] == 5000.0
     assert train.loc[0, "district"] == "MAHARASHTRA_NAGPUR"
