@@ -16,7 +16,7 @@ The source paper is *A hybrid deep learning approach for winter wheat yield pred
 
 The repository contains a separate maize data-preparation path, region-specific weather and SoilGrids downloaders, training configurations for soil and no-soil variants, methodology documentation and automated unit tests.
 
-**No raw maize yield, MODIS or district-boundary dataset is bundled. No maize model has yet been trained or empirically validated.** The default June-November window is a provisional Kharif example, not a claim that every district in all three states shares one crop calendar. Confirm crop timing and prediction cutoff with agronomic data before making forecasts.
+**No raw maize yield, MODIS or district-boundary dataset is bundled. No maize model has yet been trained or empirically validated.** The default June-December window is a provisional Kharif example, not a claim that every district in all three states shares one crop calendar. Confirm crop timing and prediction cutoff with agronomic data before making forecasts.
 
 ## 1. Environment
 
@@ -164,7 +164,7 @@ Optional soil input schema:
 DISTRICT_ID,soil_features
 ```
 
-Build the default June-November example with the soil branch:
+Build the default June-December example with the soil branch:
 
 ```bash
 python src/preprocessing/build_maize_dataset.py \
@@ -172,7 +172,7 @@ python src/preprocessing/build_maize_dataset.py \
   --yields data/yield_data/maize_kharif_central_india.csv \
   --soil data/soilgrids/downloaded_data_wcs/district_soil_data_central_india_wrangled.csv \
   --output data/datasets/maize_kharif \
-  --months 6,7,8,9,10,11 \
+  --months 6,7,8,9,10,11,12 \
   --train-end 2018 --val-end 2021
 ```
 
@@ -287,7 +287,7 @@ For every real experiment, retain:
 
 ## 11. Important research limitations
 
-- June-November is a starting Kharif window, not a validated universal calendar for all districts. Prediction availability must be stated relative to the last included month.
+- June-December is a starting Kharif window, not a validated universal calendar for all districts. Prediction availability must be stated relative to the last included month.
 - District-level means hide within-district variation in rainfall, soils, management and crop practices.
 - Historical district boundaries and yield reporting may not align with present-day polygons.
 - SoilGrids is static in this pipeline; it does not represent seasonal management or changing field conditions.
