@@ -248,7 +248,7 @@ def train_model(model, criterion, optimizer, train_loader, val_loader, config: D
     patience = config['training']['early_stopping_patience']
     
     # Create timestamped model path
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     model_save_dir = config['output']['model_save_dir']
     model_filename = f"model_{timestamp}.pt"
     model_save_path = os.path.join(model_save_dir, model_filename)
