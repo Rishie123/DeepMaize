@@ -4,11 +4,14 @@ import ast
 
 import numpy as np
 import pandas as pd
+import joblib
+from sklearn.preprocessing import StandardScaler
 
 from src.preprocessing.build_maize_dataset import build_dataset
 from data.weather_data.get_maize_monthly_features import make_monthly_features
 from data.yield_data.prepare_maize_yield import prepare_yield
 from src.preprocessing.build_maize_flat_dataset import build_flat_datasets
+from src.analysis.maize_persistence_baseline import evaluate_persistence
 
 
 def test_build_dataset_creates_chronological_splits_and_scalers(tmp_path: Path):
@@ -153,3 +156,22 @@ def test_flattened_tree_dataset_preserves_splits_and_feature_values(tmp_path: Pa
     assert train.loc[0, "past_yield"] == 0.5
     assert train.loc[0, "yield_value"] == 5000.0
     assert train.loc[0, "district"] == "MAHARASHTRA_NAGPUR"
+
+
+def test_persistence_baseline_inverse_transforms_lagged_yield(tmp_path: Path):
+    scaler = StandardScaler().fit(pd.DataFrame({"past_yield": [4000.0, 5000.0, 6000.0]}))
+    scaler_path = tmp_path / "past_yield_scaler.joblib"
+    joblib.dump(scaler, scaler_path)
+    test_path = tmp_path / "test.csv"
+    scaled_lags = scaler.transform(pd.DataFrame({"past_yield": [5000.0, 6000.0]})).ravel()
+    pd.DataFrame([
+        {"DISTRICT_ID": "MAHARASHTRA_NAGPUR", "sowing_year": 2020,
+         "past_yield": scaled_lags[0], "Yield": 5200.0},
+        {"DISTRICT_ID": "MADHYA PRADESH_CHHINDWARA", "sowing_year": 2020,
+         "past_yield": scaled_lags[1], "Yield": 6100.0},
+    ]).to_csv(test_path, index=False)
+
+    predictions, metrics = evaluate_persistence(test_path, scaler_path)
+    assert np.allclose(predictions["persistence_prediction"], [5000.0, 6000.0])
+    assert metrics["all_test_years"]["n"] == 2
+    assert np.isclose(metrics["all_test_years"]["MAE"], 150.0)
