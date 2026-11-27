@@ -1,43 +1,43 @@
-import pandas as pd
+"""Derive daily vapour-pressure-deficit features for DeepMaize."""
+import argparse
+from pathlib import Path
 import numpy as np
+import pandas as pd
 
-def calculate_svp(temp_c):
-    """Calculates saturation vapor pressure (SVP) in kPa."""
+
+def calculate_svp(temp_c: pd.Series) -> pd.Series:
+    """Saturation vapour pressure (kPa), using the Tetens approximation."""
     return 0.6108 * np.exp((17.27 * temp_c) / (temp_c + 237.3))
 
-def derive_weather_features(input_path, output_path):
-    """
-    Reads weather data, calculates vapor pressure deficit (VPD) features,
-    and saves the new data to a CSV file.
-    """
-    df = pd.read_csv(input_path)
 
-    # Assuming temperature is in Celsius and humidity in percentage
-    # T2M_MAX: Maximum Temperature at 2 Meters (C)
-    # T2M_MIN: Minimum Temperature at 2 Meters (C)
-    # RH2M: Relative Humidity at 2 Meters (%)
-    
-    t_max_col = 'T2M_MAX'
-    t_min_col = 'T2M_MIN'
-    rh_col = 'RH2M'
+def derive_weather_features(input_path: Path, output_path: Path) -> pd.DataFrame:
+    """Add maximum/minimum VPD without changing the original weather columns."""
+    frame = pd.read_csv(input_path)
+    required = {"T2M_MAX", "T2M_MIN", "RH2M"}
+    missing = required - set(frame.columns)
+    if missing:
+        raise ValueError(f"Weather input is missing required columns: {sorted(missing)}")
 
-    # Calculate SVP for max and min temperatures
-    svp_max = calculate_svp(df[t_max_col])
-    svp_min = calculate_svp(df[t_min_col])
+    # NASA POWER reports RH2M in percent. The original paper uses this
+    # temperature/RH-derived VPD approach for the two daily VPD features.
+    svp_max = calculate_svp(pd.to_numeric(frame["T2M_MAX"], errors="coerce"))
+    svp_min = calculate_svp(pd.to_numeric(frame["T2M_MIN"], errors="coerce"))
+    rh_fraction = pd.to_numeric(frame["RH2M"], errors="coerce") / 100.0
+    actual_vp = ((svp_max + svp_min) / 2.0) * rh_fraction
+    frame["max_vpd"] = svp_max - actual_vp
+    frame["min_vpd"] = svp_min - actual_vp
+    frame.to_csv(output_path, index=False)
+    return frame
 
-    # Calculate actual vapor pressure (AVP)
-    # Using average SVP for AVP calculation based on a single RH value
-    svp_avg = (svp_max + svp_min) / 2
-    avp = svp_avg * (df[rh_col] / 100)
 
-    # Calculate VPD for max and min temperatures
-    df['max_vpd'] = svp_max - avp
-    df['min_vpd'] = svp_min - avp
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input", type=Path, default=Path("weather_data_central_india.csv"))
+    parser.add_argument("--output", type=Path, default=Path("weather_features_central_india.csv"))
+    args = parser.parse_args()
+    result = derive_weather_features(args.input, args.output)
+    print(f"Wrote {len(result):,} weather rows with derived VPD to {args.output}")
 
-    df.to_csv(output_path, index=False)
-    print(f"Weather features saved to {output_path}")
 
 if __name__ == "__main__":
-    INPUT_FILE = "weather_data_guj_bih.csv"
-    OUTPUT_FILE = "weather_features_guj_bih.csv"
-    derive_weather_features(INPUT_FILE, OUTPUT_FILE)
+    main()
