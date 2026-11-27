@@ -201,4 +201,4 @@ def test_flatten_split_preserves_all_48_soil_features(tmp_path: Path):
     soil_columns = [column for column in flattened.columns if column.startswith("soil_")]
     assert len(soil_columns) == 48
     assert flattened.loc[0, "soil_organic_carbon_0_5cm"] == 0.0
-    assert flattened.loc[0, "total_nitrogen_100_200cm"] == 75.0
+    assert flattened.loc[0, "soil_total_nitrogen_100_200cm"] == 75.0
