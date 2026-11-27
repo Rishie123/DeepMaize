@@ -16,7 +16,7 @@ The source paper is *A hybrid deep learning approach for winter wheat yield pred
 
 The repository contains a separate maize data-preparation path, region-specific weather and SoilGrids downloaders, training configurations for soil and no-soil variants, methodology documentation and automated unit tests.
 
-**No raw maize yield, MODIS or district-boundary dataset is bundled. No maize model has yet been trained or empirically validated.** The default June-December window is a provisional Kharif example, not a claim that every district in all three states shares one crop calendar. Confirm crop timing and prediction cutoff with agronomic data before making forecasts.
+**No raw maize yield, MODIS or district-boundary dataset is bundled. No maize model has yet been trained or empirically validated.** The default June-December window is a provisional Kharif example, not a claim that every district in all three states shares one crop calendar. The [Madhya Pradesh crop-season table](https://www.slbcmadhyapradesh.in/docs/184th_slbc_agenda_final_mp_compressed.pdf) lists June-July sowing and August-December harvesting; ICAR's [2025 Kharif advisory](https://icar.gov.in/sites/default/files/2025-10/ICAR-En-Kharif-Agro-Advisories-for-Farmers-2025.pdf) gives a general 15 June-15 July maize sowing window. DES says its nationwide crop calendar is based on 1998-99 and is being renewed ([DES note](https://desagri.gov.in/divisions-cell/special-data-dissemination-standards-sdds/)). Confirm district-level crop timing and prediction cutoff before making forecasts.
 
 ## 1. Environment
 
