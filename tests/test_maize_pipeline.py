@@ -1,5 +1,6 @@
 """Integration tests for the DeepMaize data-preparation path."""
 from pathlib import Path
+import ast
 
 import numpy as np
 import pandas as pd
@@ -44,7 +45,7 @@ def test_build_dataset_creates_chronological_splits_and_scalers(tmp_path: Path):
     assert (out_dir / "past_yield_scaler.joblib").exists()
     train = pd.read_csv(out_dir / "train.csv")
     test = pd.read_csv(out_dir / "test.csv")
-    assert train["feature_sequence"].map(lambda x: len(eval(x))).eq(3).all()
+    assert train["feature_sequence"].map(lambda x: len(ast.literal_eval(x))).eq(3).all()
     assert set(test["sowing_year"]) == {2020, 2021, 2022}
 
 
@@ -83,7 +84,7 @@ def test_soil_matrices_are_written_in_model_input_shape(tmp_path: Path):
     )
 
     train = pd.read_csv(out_dir / "train.csv")
-    matrix = np.asarray(eval(train.iloc[0]["soil_features"]), dtype=float)
+    matrix = np.asarray(ast.literal_eval(train.iloc[0]["soil_features"]), dtype=float)
     assert matrix.shape == (8, 6)
     assert metadata["soil_matrix_shape"] == [8, 6]
     assert (out_dir / "soil_scaler.joblib").exists()
