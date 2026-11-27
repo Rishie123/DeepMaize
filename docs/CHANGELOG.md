@@ -22,3 +22,6 @@
 - Added a sequence-to-flat converter for Random Forest, XGBoost and LightGBM.
 - Updated tree-based multi-seed selection to use validation RMSE; test results remain reporting-only.
 - Added a stand-alone persistence baseline report that inverse-transforms the lagged-yield feature.
+
+- Added data-quality attrition and district-coverage counts to dataset metadata.
+- Added a data dictionary covering source schemas, identifiers, feature ordering, units/provenance and split fields.
