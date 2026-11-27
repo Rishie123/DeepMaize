@@ -295,7 +295,7 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=Path("../../data/datasets/maize_kharif"))
     parser.add_argument("--months", default="6,7,8,9,10,11",
                         help="Comma-separated Kharif months; defaults to June-November")
-    parser.add_argument("--train-end", type=int, default=2017)
+    parser.add_argument("--train-end", type=int, default=2018)
     parser.add_argument("--val-end", type=int, default=2021)
     parser.add_argument("--year-offset", type=int, default=0)
     args = parser.parse_args()
