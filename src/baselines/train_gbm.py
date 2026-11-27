@@ -274,8 +274,12 @@ def set_random_seed(seed):
 def train_and_evaluate_seed(model_key, best_params, config, seed,
                             X_train, y_train, X_val, y_val, X_test, y_test, meta,
                             soil_mode):
-    """Train with best params on train set, evaluate on test set, save artifacts.
-    Returns (test_metrics, model_save_path, model)."""
+    """Fit one seed, score validation and test sets, and save test artifacts.
+
+    Validation metrics are used by the caller for seed selection. Test metrics
+    are returned for reporting only and must not determine the retained model.
+    Returns validation metrics, test metrics, model path/name and output dir.
+    """
     set_random_seed(seed)
     builder = MODEL_BUILDERS[model_key]
     model = builder(best_params, seed)
@@ -375,6 +379,7 @@ def multi_seed_evaluation(model_key, best_params, config,
                 'model_name': model_name,
                 'output_dir': output_dir,
                 'seed': int(seed),
+                'validation_metrics': val_metrics,
                 'test_metrics': metrics,
             }
 
@@ -404,6 +409,8 @@ def multi_seed_evaluation(model_key, best_params, config,
         'best_hpo_params': best_params,
         'random_seed': best_info['seed'],
         'seeds': seeds,
+        'validation_metrics': best_info['validation_metrics'],
+        'validation_rmse_for_seed_selection': best_validation_rmse,
         'test_metrics': best_info['test_metrics'],
         'mean_test_metrics': mean_metrics,
         'std_test_metrics': std_metrics,
