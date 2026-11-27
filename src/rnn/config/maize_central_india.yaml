@@ -1,0 +1,52 @@
+# DeepMaize configuration.
+# Architecture follows the proposed CNN-BiLSTM-self-attention model.
+# Hyperparameters are copied as a starting point from the wheat paper's
+# published best configuration; they must be re-tuned on maize validation data.
+data:
+  base_path: "../../data/datasets/maize_kharif"
+  train_file: train.csv
+  val_file: val.csv
+  test_file: test.csv
+
+reproducibility:
+  seed: 42
+  deterministic: true
+  num_runs: 5
+
+dataloader:
+  batch_size: 16
+  num_workers: 0
+  pin_memory: false
+  persistent_workers: false
+  prefetch_factor: null
+  drop_last_train: false
+
+model:
+  use_soil_features: true
+  soil_mode: cnn
+  rnn_type: lstm
+  bidirectional: true
+  rnn_n_layers: 3
+  rnn_hidden_dim: 60
+  fc_hidden_dims: [240, 208, 192, 192, 80]
+  rnn_dropout_prob: 0.4691
+  fc_dropout_prob: 0.3922
+  use_temporal_attention: true
+  attention_type: self
+  attention_dim: 48
+  attention_use_bias: false
+  use_layer_norm: true
+  soil_out_channels: 48
+  soil_kernel_size: 2
+  soil_n_conv_blocks: 1
+
+training:
+  n_epochs: 100
+  early_stopping_patience: 15
+  learning_rate: 0.005506
+  weight_decay: 0.000149726
+  loss: huber
+  huber_delta: 1400
+
+output:
+  model_save_dir: saved_models/cnn_bilstm_self_attn_maize
