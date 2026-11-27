@@ -100,7 +100,7 @@ def fetch_weather_for_district(
 ):
     """Fetch daily weather for one district centroid and attach stable labels."""
     state_name = str(gdf_row["STATE_UT"]).strip().upper()
-    district_name = str(gdf_row["DISTRICT"]).strip()
+    district_name = str(gdf_row["DISTRICT"]).strip().upper()
     try:
         longitude, latitude = get_centroid_coordinates(gdf_row, gdf_crs)
         response = fetch_nasa_power_data(
