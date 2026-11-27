@@ -204,7 +204,62 @@ python train_model.py --config config/maize_central_india_no_soil.yaml
 
 The YAML starts from the reference wheat paper's published proposed-model hyperparameters; these are **not maize-optimised**. Tune hyperparameters using the maize validation set only. The training script now selects the retained random-seed run by best validation loss, not test-set R². The test metrics are reported after validation-based checkpoint selection and are not used to choose the model.
 
-## 9. Reproducibility and testing
+## 9. Benchmark models
+
+The reference study compares the proposed hybrid model with recurrent, convolutional, Transformer, parallel CNN-LSTM-attention and tree-based baselines. DeepMaize now includes maize-specific starting configurations for these benchmark families. All inherited wheat hyperparameters are starting points only; tune them on the maize validation split.
+
+### LSTM and BiLSTM
+
+These use the shared `CNN_RNN` trainer with temporal attention disabled. Run from `src/rnn`:
+
+```bash
+python train_model.py --config config/maize_lstm.yaml
+python train_model.py --config config/maize_bilstm.yaml
+```
+
+### 1D-CNN, Transformer and parallel CNN-LSTM-attention
+
+These baseline scripts consume the same sequence CSVs. Run from `src/baselines`:
+
+```bash
+python train_cnn1d.py --config config/cnn1d_maize_with_soil.yaml
+python train_transformer.py --config config/transformer_maize_with_soil.yaml
+python train_parallel.py --config config/parallel_maize_with_soil.yaml
+```
+
+Matching `*_maize_without_soil.yaml` variants are included. These baselines use their own architecture-specific soil handling; the main proposed model's soil branch is a 1D CNN over the 8 × 6 matrix.
+
+### Random Forest, XGBoost and LightGBM
+
+The tree trainers expect flattened numeric features. First convert the sequence splits:
+
+```bash
+python src/preprocessing/build_maize_flat_dataset.py \
+  --input data/datasets/maize_kharif \
+  --output data/datasets/rf_flat_maize
+```
+
+Then run HPO and the five-seed evaluation from `src/baselines`:
+
+```bash
+python train_gbm.py --model rf --soil with --config config/rf_maize.yaml
+python train_gbm.py --model xgb --soil with --config config/xgb_maize.yaml
+python train_gbm.py --model lgbm --soil with --config config/lgbm_maize.yaml
+```
+
+Use `--n-trials 20` for a short pipeline check before the full configured search. All three tree models tune by validation MSE; the final seed is selected by validation RMSE. Test metrics are saved for reporting only. Flattened soil columns preserve the same eight-property, six-depth ordering. The no-soil option is selected with `--soil without`.
+
+### Baseline comparison rules
+
+- Run every architecture on the same district-year splits and target unit.
+- Keep preprocessing and feature availability consistent across models.
+- Use validation data for hyperparameter search, early stopping and seed selection.
+- Report test metrics only after model selection is complete.
+- Include a persistence forecast `prediction = past_yield`; report it alongside the learned models because lagged yield can be a strong baseline.
+- Report multiple-seed mean and dispersion rather than selecting the seed with the highest test R².
+
+## 10. Reproducibility and testing
+
 
 The maize preprocessing tests can be run from the repository root:
 
@@ -223,7 +278,7 @@ For every real experiment, retain:
 - package versions, random seeds, YAML configuration and model checkpoint;
 - MAE, RMSE and R², plus a persistence baseline using lagged yield.
 
-## 10. Important research limitations
+## 11. Important research limitations
 
 - June-November is a starting Kharif window, not a validated universal calendar for all districts. Prediction availability must be stated relative to the last included month.
 - District-level means hide within-district variation in rainfall, soils, management and crop practices.
