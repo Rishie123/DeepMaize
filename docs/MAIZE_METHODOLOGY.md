@@ -38,7 +38,7 @@ Yield input must have `DISTRICT_ID`, `sowing_year` and `Yield`. The source shoul
 
 ## Crop calendar and sequence construction
 
-The default example uses June–December (months 6–11), with all six months assigned to the same calendar-year sowing year. This is an **initial configuration only**, not a universal maize calendar for all three states. Sowing and crop duration vary with district, rainfall onset, irrigation and maturity group. Prior to final training:
+The provisional default is June–December (months 6–12), with all seven months assigned to the same calendar-year sowing year. This is a **working Central India Kharif window**, not a universal district calendar. An Madhya Pradesh State Level Bankers' Committee crop-season table lists Kharif maize sowing in June–July and harvesting in August–December; ICAR's 2025 Kharif advisory gives a general maize sowing window of 15 June–15 July. The Directorate of Economics & Statistics notes that its national crop calendar is based on 1998–99 and is being renewed. These are broad references, not a validated crop calendar for every district in Maharashtra, Madhya Pradesh and Chhattisgarh. Before final training:
 
 - obtain district/state agricultural crop-calendar references;
 - verify whether the target yield series is season-labelled Kharif;
