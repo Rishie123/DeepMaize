@@ -85,6 +85,8 @@ def process_nasa_csv_data(csv_data):
         raise ValueError("NASA POWER response has no -END HEADER- marker")
     payload = "\n".join(line for line in lines[start:] if line.strip())
     frame = pd.read_csv(StringIO(payload))
+    # NASA POWER uses -999 as a missing-value sentinel; never treat it as weather.
+    frame = frame.replace(-999, float("nan"))
     if not {"YEAR", "DOY"}.issubset(frame.columns):
         raise ValueError("NASA POWER CSV must contain YEAR and DOY")
     frame["Date"] = pd.to_datetime(
