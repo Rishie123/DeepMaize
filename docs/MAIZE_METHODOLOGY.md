@@ -38,7 +38,7 @@ Yield input must have `DISTRICT_ID`, `sowing_year` and `Yield`. The source shoul
 
 ## Crop calendar and sequence construction
 
-The default example uses June–November (months 6–11), with all six months assigned to the same calendar-year sowing year. This is an **initial configuration only**, not a universal maize calendar for all three states. Sowing and crop duration vary with district, rainfall onset, irrigation and maturity group. Prior to final training:
+The default example uses June–December (months 6–11), with all six months assigned to the same calendar-year sowing year. This is an **initial configuration only**, not a universal maize calendar for all three states. Sowing and crop duration vary with district, rainfall onset, irrigation and maturity group. Prior to final training:
 
 - obtain district/state agricultural crop-calendar references;
 - verify whether the target yield series is season-labelled Kharif;
@@ -46,7 +46,7 @@ The default example uses June–November (months 6–11), with all six months as
 - decide whether the model should predict at a fixed early-season date or after the full season;
 - record the month list and sowing-year mapping in metadata.
 
-A yield forecast made using June–November observations is only available after those observations have occurred. Do not describe it as an early-season forecast unless the input window is truncated accordingly.
+A yield forecast made using June–December observations is only available after those observations have occurred. Do not describe it as an early-season forecast unless the input window is truncated accordingly.
 
 The sequence builder expects one observation per district-month and retains only complete sequences for the configured month set. Partial sequences are excluded to guarantee consistent tensor dimensions. Alternative missing-month imputation should be a separately documented experiment.
 
