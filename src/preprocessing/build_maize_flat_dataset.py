@@ -88,7 +88,7 @@ def flatten_split(
             for property_index, property_name in enumerate(SOIL_FEATURES):
                 for depth_index, depth_name in enumerate(SOIL_DEPTHS):
                     column = f"{property_name}_{depth_name}"
-                    record[f"soil_{column}"] = float(
+                    record[column] = float(
                         soil[property_index, depth_index]
                     )
         rows.append(record)
