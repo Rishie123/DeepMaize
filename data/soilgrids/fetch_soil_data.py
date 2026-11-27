@@ -129,7 +129,7 @@ def main():
 
     tasks = []
     for _, row in roi.iterrows():
-        district, state, geometry = row[DISTRICT_COLUMN], row[STATE_COLUMN], row.geometry
+        district, state, geometry = str(row[DISTRICT_COLUMN]).strip().upper(), str(row[STATE_COLUMN]).strip().upper(), row.geometry
         minx, miny, maxx, maxy = geometry.bounds
         for feature_name, service_id in SOIL_FEATURES.items():
             for depth in DEPTH_INTERVALS:
