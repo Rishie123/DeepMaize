@@ -76,7 +76,7 @@ def flatten_split(
         for month_index in range(sequence.shape[0]):
             for feature_index, feature_name in enumerate(feature_names):
                 column = f"temporal_m{month_index + 1:02d}_{feature_name}"
-                record[f"soil_{column}"] = float(sequence[month_index, feature_index])
+                record[column] = float(sequence[month_index, feature_index])
 
         if soil_available:
             soil = _parse_nested(row["soil_features"], "soil_features")
@@ -88,7 +88,7 @@ def flatten_split(
             for property_index, property_name in enumerate(SOIL_FEATURES):
                 for depth_index, depth_name in enumerate(SOIL_DEPTHS):
                     column = f"{property_name}_{depth_name}"
-                    record[column] = float(
+                    record[f"soil_{column}"] = float(
                         soil[property_index, depth_index]
                     )
         rows.append(record)
