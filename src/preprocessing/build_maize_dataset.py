@@ -125,8 +125,12 @@ def _fit_transform_sequences(
         array = np.stack(frame["feature_sequence"].to_numpy()).astype(np.float32)
         n, steps, features = array.shape
         transformed = sequence_scaler.transform(array.reshape(-1, features))
-        frame.loc[:, "feature_sequence"] = list(
-            transformed.reshape(n, steps, features).tolist()
+        # Use an object Series explicitly: nested [time, feature] lists
+        # are single CSV-cell values, not a 2-D dataframe assignment.
+        frame["feature_sequence"] = pd.Series(
+            transformed.reshape(n, steps, features).tolist(),
+            index=frame.index,
+            dtype=object,
         )
     joblib.dump(sequence_scaler, output_dir / "temporal_scaler.joblib")
 
@@ -182,8 +186,12 @@ def _fit_transform_soil(
                 )
             scaled = scaler.transform(matrix.T).T
             scaled_values.append(scaled.tolist())
-        frame.loc[:, "soil_features"] = scaled_values
-        frame.drop(columns=["soil_features_parsed"], inplace=True)
+        # Each nested [property, depth] matrix occupies one dataframe cell.
+        frame["soil_features"] = pd.Series(
+            scaled_values, index=frame.index, dtype=object
+        )
+        frame = frame.drop(columns=["soil_features_parsed"])
+        frames[split] = frame
     joblib.dump(scaler, output_dir / "soil_scaler.joblib")
     return n_properties * n_depths
 
