@@ -8,6 +8,7 @@ import pandas as pd
 from src.preprocessing.build_maize_dataset import build_dataset
 from data.weather_data.get_maize_monthly_features import make_monthly_features
 from data.yield_data.prepare_maize_yield import prepare_yield
+from src.preprocessing.build_maize_flat_dataset import build_flat_datasets
 
 
 def test_build_dataset_creates_chronological_splits_and_scalers(tmp_path: Path):
@@ -127,3 +128,28 @@ def test_yield_preparation_filters_kharif_maize_and_normalises_ids(tmp_path: Pat
         "MADHYA PRADESH_CHHINDWARA", "MAHARASHTRA_NAGPUR"
     ]
     assert result["sowing_year"].tolist() == [2019, 2018]
+
+
+def test_flattened_tree_dataset_preserves_splits_and_feature_values(tmp_path: Path):
+    sequence_dir = tmp_path / "sequence"
+    sequence_dir.mkdir()
+    metadata = {"feature_columns": ["rain", "NDVI"]}
+    (sequence_dir / "metadata.json").write_text(__import__("json").dumps(metadata))
+    for split, year in [("train", 2018), ("val", 2019), ("test", 2020)]:
+        pd.DataFrame([{
+            "DISTRICT_ID": "MAHARASHTRA_NAGPUR",
+            "sowing_year": year,
+            "feature_sequence": str([[1.0, 0.2], [2.0, 0.3]]),
+            "past_yield": 0.5,
+            "Yield": 5000.0,
+        }]).to_csv(sequence_dir / f"{split}.csv", index=False)
+
+    output_dir = tmp_path / "flat"
+    summary = build_flat_datasets(sequence_dir, output_dir)
+    train = pd.read_csv(output_dir / "train_rf_flat.csv")
+    assert summary["split_rows"] == {"train": 1, "val": 1, "test": 1}
+    assert train.loc[0, "temporal_m01_rain"] == 1.0
+    assert train.loc[0, "temporal_m02_NDVI"] == 0.3
+    assert train.loc[0, "past_yield"] == 0.5
+    assert train.loc[0, "yield_value"] == 5000.0
+    assert train.loc[0, "district"] == "MAHARASHTRA_NAGPUR"
