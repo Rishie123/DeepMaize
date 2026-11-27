@@ -256,6 +256,11 @@ Use `--n-trials 20` for a short pipeline check before the full configured search
 - Use validation data for hyperparameter search, early stopping and seed selection.
 - Report test metrics only after model selection is complete.
 - Include a persistence forecast `prediction = past_yield`; report it alongside the learned models because lagged yield can be a strong baseline.
+- Run the stand-alone persistence report after the sequence dataset has been built:
+  ```bash
+  python src/analysis/maize_persistence_baseline.py
+  ```
+  It reverses the training-fitted lagged-yield scaler and reports test MAE, RMSE and R², including a per-sowing-year breakdown.
 - Report multiple-seed mean and dispersion rather than selecting the seed with the highest test R².
 
 ## 10. Reproducibility and testing
