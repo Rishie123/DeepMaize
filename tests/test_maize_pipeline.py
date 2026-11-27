@@ -45,6 +45,11 @@ def test_build_dataset_creates_chronological_splits_and_scalers(tmp_path: Path):
     assert metadata["split_years"]["train"] == [2016, 2017]
     assert metadata["split_years"]["validation"] == [2018, 2019]
     assert metadata["split_years"]["test"] == [2020, 2021, 2022]
+    assert metadata["data_quality"]["complete_finite_feature_sequences"] == 16
+    assert metadata["data_quality"]["district_years_with_exact_previous_year_yield"] == 14
+    assert metadata["data_quality"]["rows_per_split"] == {
+        "train": 4, "validation": 4, "test": 6
+    }
     assert (out_dir / "temporal_scaler.joblib").exists()
     assert (out_dir / "past_yield_scaler.joblib").exists()
     train = pd.read_csv(out_dir / "train.csv")
