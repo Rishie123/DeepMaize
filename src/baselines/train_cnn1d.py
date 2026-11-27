@@ -137,7 +137,7 @@ def main(config_path: str):
             seeds = [base_seed]
 
         all_test_metrics = []
-        best_overall_test_r2 = -float('inf')
+        best_validation_loss = float('inf')
         best_model_info = {}
         saved_model_paths = []
 
@@ -168,9 +168,10 @@ def main(config_path: str):
             test_metrics = evaluate_model(model, test_dataset, device, output_dir, model_name)
             all_test_metrics.append(test_metrics)
 
-            current_test_r2 = test_metrics['r2_score']
-            if current_test_r2 > best_overall_test_r2:
-                best_overall_test_r2 = current_test_r2
+            # Use validation loss for seed selection; keep test set held out.
+            current_best_val_loss = min(val_losses)
+            if current_best_val_loss < best_validation_loss:
+                best_validation_loss = current_best_val_loss
                 best_model_info = {
                     'config': config,
                     'best_val_loss': min(val_losses),
