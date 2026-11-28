@@ -1,76 +1,94 @@
-# Agmarknet price and arrival ingestion
+# Agmarknet/CEDA ingestion for price forecasting
 
-## What this source provides
+## Data source and API
 
-DeepMaize can download Agmarknet-derived daily mandi wholesale price and arrival series through CEDA Agri Market Data. Its portal attributes the source data to the Directorate of Marketing & Inspection (DMI), Ministry of Agriculture and Farmers Welfare.
+DeepMaize retrieves Agmarknet-derived market quotations and arrival quantities through CEDA Agri Market Data. The CEDA portal attributes this information to the Directorate of Marketing & Inspection (DMI), Ministry of Agriculture and Farmers Welfare, Government of India.
 
-This is **not the maize yield-label source**. Agmarknet records market observations (minimum, maximum and modal prices, and arrival quantities). The DeepMaize target Yield remains a district × Kharif-sowing-year yield observation from the appropriate crop-statistics source. Do not relabel a price or arrival field as crop yield.
+Official references:
 
-CEDA documentation: https://api.ceda.ashoka.edu.in/documentation/  
-Portal: https://agmarknet.ceda.ashoka.edu.in/  
-API terms: https://ceda.ashoka.edu.in/api-terms-conditions/
+- API reference: https://api.ceda.ashoka.edu.in/documentation/
+- Data portal: https://agmarknet.ceda.ashoka.edu.in/
+- API terms: https://ceda.ashoka.edu.in/api-terms-conditions/
+- Government of India OGD record: https://data.gov.in/resource/variety-wise-daily-market-prices-data-commodity
 
-**Licence/terms:** CEDA's published API terms currently state that API data may be used for non-commercial purposes at no cost, subject to attribution. They specify the citation “CEDA Agri Market Data (CEDA-AMD), 2000-2023”, Centre for Economic Data & Analysis, Ashoka University. Check the live terms before use, especially before commercial or client-facing deployment.
+The active project needs market-level price records, not a state or district aggregate. The downloader uses the CEDA market-download chart selection for each district and retains returned market IDs/names.
 
-## Install and run
+## Terms of use
 
-The downloader uses the existing requests and pandas dependencies.
+CEDA's published API terms currently permit downloading, displaying or including the data in other products for **non-commercial purposes** at no cost, subject to citation and visual attribution. Required citation:
 
-From the repository root:
+    CEDA Agri Market Data (CEDA-AMD), 2000-2023.
+    Centre for Economic Data & Analysis, Ashoka University.
 
-    python data/market_data/download_agmarknet.py \
-      --start-date 2007-01-01 \
-      --end-date 2023-12-31 \
-      --states Maharashtra "Madhya Pradesh" Chhattisgarh \
-      --level district \
-      --calculation-type m \
-      --output-dir data/market_data/agmarknet
+The terms also require the CEDA logo and a source credit in visualisations/applications. Do not deploy these data in a commercial price product or business service without explicit permission or a separately licensed source. Verify the current terms before using the API.
 
-The default commodity is maize. The downloader queries CEDA's live commodity catalogue and resolves the exact commodity ID by name. It also queries state and district catalogues instead of assuming district IDs are stable across releases.
+## Download
 
-Choose the granularity deliberately:
+A short smoke test:
 
-| Option | API selection | Use |
-|---|---|---|
-| state | One aggregate selection per state (district_id=0) | Quick coverage check |
-| district | One selection per district | District-level market series |
-| market | One selection per district using chart_type=datadownload | Mandi-level detail where the API returns it |
+~~~bash
+python data/market_data/download_agmarknet.py \
+  --start-date 2020-01-01 --end-date 2020-12-31 \
+  --states Maharashtra --level market --calculation-type d \
+  --output-dir data/market_data/agmarknet_smoke
+~~~
 
-The calculation interval is d (daily), m (monthly) or y (yearly). Monthly is the sensible first pass for district × year modelling; daily/market-level downloads can be substantially larger. The actual observations returned determine the data coverage.
+Full Central India extraction:
 
-A short smoke test for a single state and month:
+~~~bash
+python data/market_data/download_agmarknet.py \
+  --start-date 2007-01-01 --end-date 2023-12-31 \
+  --states Maharashtra "Madhya Pradesh" Chhattisgarh \
+  --level market --calculation-type d \
+  --output-dir data/market_data/agmarknet
+~~~
 
-    python data/market_data/download_agmarknet.py \
-      --start-date 2020-06-01 --end-date 2020-06-30 \
-      --states Maharashtra --level district --calculation-type m \
-      --output-dir data/market_data/agmarknet_smoke
+The default commodity is maize. Commodity IDs are resolved from the live CEDA catalogue. State and district catalogues are queried to retrieve API identifiers.
 
-The downloader waits 1.5 seconds before requests and retries transient connection, rate-limit and server errors with exponential backoff. It does not try to bypass CAPTCHA or authentication gates. A partially successful run saves its outputs and a download_log.csv; the process exits with code 2 so failures are visible.
+The script supports:
+- level=state: one state-level aggregate.
+- level=district: district-level aggregate.
+- level=market: market-level download view; required for this project.
+- calculation-type d|m|y: daily, monthly or yearly calculation period.
 
-## Outputs
+Daily market-level data is preferred for the canonical extraction because it preserves the raw reported quotation dates. The next step aggregates it to monthly observations. A monthly CEDA pull is useful for a quick trial, but confirm how that endpoint represents markets and periods before combining it with daily files.
 
-| File | Contents |
-|---|---|
-| agmarknet_prices.csv | Normalised minimum, maximum and modal wholesale prices |
-| agmarknet_quantities.csv | Normalised arrival quantity observations |
-| download_log.csv | One success/failure row per geographic selection and endpoint |
-| download_metadata.json | Source, extraction time, filters, record counts and output paths |
-| raw/*.json | Unmodified API responses plus downloaded catalogue metadata |
+## Output files
 
-Both normalised CSVs retain state/district and numeric IDs, market/market ID when supplied, commodity, variety, date, and common price/arrival columns. For the price table, arrival_qty will normally be empty; for the quantity table, price columns will normally be empty. Raw JSON is retained to preserve provider fields not included in the normalised schema.
+- agmarknet_prices.csv: normalised price records.
+- agmarknet_quantities.csv: normalised arrivals.
+- download_log.csv: endpoint result and errors by state/district.
+- download_metadata.json: query details, output counts and extraction time.
+- raw/: unmodified JSON data and lookup catalogues.
 
-The source series is not guaranteed to be complete or current to today. Inspect the minimum and maximum date, row counts and missingness; treat the latest observation date as the source timestamp rather than assuming a live quote. Preserve download metadata with every modelling experiment.
+The normalised rows include state/district, market and IDs when returned, commodity, variety, date, min/max/modal prices and arrivals. Retain the raw JSON if the provider adds fields or changes schema.
 
-## Methodological treatment in DeepMaize
+## Convert to monthly panel
 
-The main paper-replication configuration continues to use the reference meteorological/vegetation sequence, static soil matrix and previous-year yield. Do not silently add market data to that baseline: it changes the feature set and can make comparison with the paper unfair.
+~~~bash
+python src/prices/prepare_price_panel.py \
+  --prices data/market_data/agmarknet/agmarknet_prices.csv \
+  --quantities data/market_data/agmarknet/agmarknet_quantities.csv \
+  --output data/processed/maize_market_monthly.csv
+~~~
 
-After the download is validated, Agmarknet may be assessed as a separate market-information extension. Before joining it to DeepMaize, create and inspect a state-qualified district crosswalk between CEDA names and Survey of India boundary names. Historical district splits/renames must be resolved explicitly. Decide whether market price/arrival values are information available by the forecast cutoff; avoid using post-harvest prices or arrivals to predict the same season's yield.
+The active monthly target is the median of daily modal prices within each mandi × variety × month. Minimum and maximum price series are retained as historical features. Market × commodity monthly arrivals are summed from source records and joined to variety-level price rows; they can repeat across varieties, so do not sum them across variety rows.
 
-Price units are expected to follow source conventions (often ₹/quintal), but inspect the specific API output and provider metadata rather than hard-coding a unit assumption. Arrival quantity units may vary by commodity/report; preserve source units and verify them before aggregation. Do not sum market-level varieties or duplicate rows without checking data grain.
+The preprocessor requires a market ID or a market label. If the downloaded prices contain only district-level totals, rerun at level=market; do not treat district aggregates as market prices.
 
-## Tests
+## Coverage checks before modelling
 
-    python -m pytest -q tests/test_agmarknet_download.py
+Inspect:
+- earliest and latest observation dates;
+- number of markets and varieties by state;
+- modal-price missingness and non-positive values;
+- violations of min ≤ modal ≤ max where all bounds are present;
+- monthly coverage and length of consecutive histories;
+- quantity coverage and its reporting unit;
+- market IDs and names that change over time.
 
-These tests use mocked API responses. They validate parsing, commodity resolution, provenance outputs and separate price/quantity files; they do not establish that the live CEDA service is currently reachable or that every target district has maize observations.
+The dataset builder excludes windows that do not have all 12 consecutive preceding months. It does not fill missing prices.
+
+## Caution
+
+CEDA states that data accuracy is not warranted. Verify unusual observations with the source and report exclusions. A month-level prediction is not an auction-day quote; it should be displayed with the latest input month and the target month, not labelled live.
