@@ -167,7 +167,7 @@ def train(args: argparse.Namespace) -> dict:
         "target": metadata["target"],
         "forecast_horizon_months": metadata["forecast_horizon_months"],
         "lookback_months": metadata["lookback_months"],
-        "unit": "same as modal_price input; verify provider unit",
+        "unit": "INR per quintal, subject to source metadata verification",
         "device": str(device),
         "seed": args.seed,
         "best_epoch": best_epoch,
