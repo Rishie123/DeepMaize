@@ -156,6 +156,40 @@ def test_price_dataset_does_not_bridge_a_missing_month(tmp_path: Path):
         assert metadata["data_quality"]["windowed_samples"] > 0
 
 
+def test_future_only_market_uses_unknown_embedding_index(tmp_path: Path):
+    panel_path = tmp_path / "future_market_panel.csv"
+    _make_monthly_panel(panel_path)
+    panel = pd.read_csv(panel_path)
+    future_series = "Madhya Pradesh|Bhopal|id:103|maize|hybrid"
+    future_rows = []
+    for month_index, period in enumerate(pd.date_range("2021-01-01", "2024-12-01", freq="MS")):
+        value = 1700 + month_index * 2
+        future_rows.append({
+            "series_id": future_series,
+            "state": "Madhya Pradesh",
+            "district": "Bhopal",
+            "market": "Bhopal APMC",
+            "variety": "Hybrid",
+            "period": period,
+            "modal_price": value,
+            "min_price": value - 80,
+            "max_price": value + 100,
+            "arrival_qty": 60 + month_index,
+            "reporting_days": 7,
+        })
+    panel = pd.concat([panel, pd.DataFrame(future_rows)], ignore_index=True)
+    panel.to_csv(panel_path, index=False)
+
+    output_dir = tmp_path / "future_market_dataset"
+    metadata = build_price_dataset(
+        panel_path, output_dir, window=12, train_end=2020, val_end=2021
+    )
+    with np.load(output_dir / "test.npz", allow_pickle=False) as test:
+        unseen = test["series_id"] == future_series
+        assert unseen.any()
+        assert np.all(test["series_index"][unseen] == 0)
+    assert metadata["cold_start_series_in_val_or_test"] > 0
+
 def test_price_dataset_fails_when_market_identity_is_missing(tmp_path: Path):
     path = tmp_path / "prices_no_market.csv"
     pd.DataFrame([{
