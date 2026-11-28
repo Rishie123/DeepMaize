@@ -149,11 +149,10 @@ def test_price_dataset_does_not_bridge_a_missing_month(tmp_path: Path):
     metadata = build_price_dataset(
         panel_path, output_dir, window=12, train_end=2020, val_end=2021
     )
-    with np.load(output_dir / "test.npz", allow_pickle=False) as test:
+    with np.load(output_dir / "train.npz", allow_pickle=False) as train:
         # Market 1 cannot contribute May 2020 (its previous month is missing).
-        # It resumes after 12 new consecutive observations have accumulated.
-        affected = test["series_id"] == key
-        assert not np.any(affected & (test["period"] == "2020-05"))
+        affected = train["series_id"] == key
+        assert not np.any(affected & (train["period"] == "2020-05"))
         assert metadata["data_quality"]["windowed_samples"] > 0
 
 
