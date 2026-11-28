@@ -1,79 +1,80 @@
-# DeepMaize: methodology and replication notes
+# DeepMaize: maize mandi-price forecasting methodology
 
-## Objective and scope
+## Objective
 
-DeepMaize adapts the DeepWheat district-level multimodal yield-prediction pipeline to **Kharif maize** in **Maharashtra, Madhya Pradesh and Chhattisgarh**. The prediction unit is district × sowing year. The target is reported maize yield, not area or production.
+Predict the next calendar month's wholesale modal price of maize for an individual mandi and variety in Maharashtra, Madhya Pradesh and Chhattisgarh.
 
-This is a methodological adaptation, not a claim that the wheat model is already validated for maize. Model performance must be established with maize observations.
+This is a market-price time-series forecasting task. It supersedes the earlier yield-prediction adaptation as the active project objective. Annual crop yield, soil properties and the seasonal crop calendar are not targets or required inputs in the active price workflow.
 
-## Architecture retained from the reference implementation
+## Observation and target grain
 
-The primary model remains the original `CNN_RNN`:
+The source is Agmarknet market reporting accessed through CEDA Agri Market Data. Daily records carry market/commodity context and minimum, maximum and modal wholesale prices. The model's observation unit is:
 
-1. **Temporal branch:** a multi-layer bidirectional LSTM consumes monthly weather and vegetation-index features.
-2. **Temporal self-attention:** attention learns which monthly hidden representations are most informative for the district-season yield estimate.
-3. **Soil branch:** a one-dimensional CNN consumes soil properties arranged as property × depth.
-4. **Lagged yield:** the previous available year's district yield is supplied directly to the regression head.
-5. **Regression head:** concatenates temporal representation, lagged yield and soil representation, then predicts a scalar yield.
+    state × district × mandi × maize variety × month
 
-The architecture and forward pass are preserved; the adaptation happens in crop-season indexing, input assembly, split configuration, data validation and experiment protocol.
+For each calendar month, the target is the median of the reported daily modal-price observations for that market-variety. This robust aggregation is selected to dampen individual reporting spikes. It is not a transaction-weighted average and should not be interpreted as a guaranteed executable price.
 
-## Inputs and feature definitions
+## Forecast origin and horizon
 
-### Weather
+The forecast origin is the end of the previous complete calendar month. For a target month t:
 
-The inherited weather workflow uses NASA POWER daily records. The reference paper's appendix lists precipitation, maximum/minimum/mean temperature, relative humidity, solar radiation, 10 m wind speed, specific humidity, surface pressure, and derived maximum/minimum vapour-pressure deficit. Confirm the exact feature column names in the generated daily weather CSV before building monthly features.
+    Inputs: t-12, t-11, ..., t-1
+    Target: monthly median modal price in t
 
-### Vegetation
+A full 12 consecutive months of observations is required for the same market-variety series. Missing calendar months break a window; the pipeline does not silently substitute the last available quotation. The default horizon is one month and the default lookback is 12 months. Both are recorded in dataset metadata.
 
-The inherited workflow combines weather and remote-sensing tables by district and date, then aggregates daily observations to monthly means. The reference paper uses MODIS NDVI and EVI. Ensure the satellite composites are date-aligned and document missing-composite handling. An inner join can discard weather dates without satellite observations; the choice of join and valid-observation coverage should be explicitly assessed rather than silently assumed.
+## Input features
 
-### Soil
+Historical price features are minimum, maximum and modal price; historical market arrival quantity is an optional predictor. Each numeric market variable is log1p transformed to reduce scale skew and standardised using training records only. Missing arrivals are represented as zero after log transformation with a separate missingness flag. Seasonal month-of-year and forecast-month encodings are included.
 
-The reference pipeline represents eight soil properties at six depths (0–5, 5–15, 15–30, 30–60, 60–100 and 100–200 cm), giving a 8 × 6 matrix per district. The CNN input convention is property × depth. Soil variables listed in the paper are soil organic carbon, pH, bulk density, sand, silt, clay, cation-exchange capacity and total nitrogen. Preserve units and provider-specific transformations in the metadata.
+Target-month prices and target-month arrivals are not available to the forecast and must never be joined into the corresponding sample.
 
-### Yield
+## Model
 
-Yield input must have `DISTRICT_ID`, `sowing_year` and `Yield`. The source should be documented with its table identifier, extraction date, units, revisions and any aggregation applied. Do not mix maize across Kharif/Rabi/summer seasons. District names alone are not safe keys: create and validate a state-qualified stable identifier, and maintain an explicit crosswalk when district boundaries or names change.
+A pooled two-layer LSTM encodes the sequence of prior monthly market features. Its final hidden state is concatenated with a learned embedding identifying the market × commodity × variety series. A small fully connected regression head outputs log1p of the next-month modal price. Predictions are transformed back to the source price unit for evaluation.
 
-## Crop calendar and sequence construction
+Pooling allows the recurrent model to learn common seasonal and price dynamics across mandis while preserving a learned market-level baseline. A market absent from training has no learned market-specific embedding and is a cold-start case; results for such markets are not expected to be reliable.
 
-The provisional default is June–December (months 6–12), with all seven months assigned to the same calendar-year sowing year. This is a **working Central India Kharif window**, not a universal district calendar. The Madhya Pradesh State Level Bankers' Committee [crop-season table](https://www.slbcmadhyapradesh.in/docs/184th_slbc_agenda_final_mp_compressed.pdf) lists Kharif maize sowing in June–July and harvesting in August–December; ICAR's [2025 Kharif advisory](https://icar.gov.in/sites/default/files/2025-10/ICAR-En-Kharif-Agro-Advisories-for-Farmers-2025.pdf) gives a general maize sowing window of 15 June–15 July. The Directorate of Economics & Statistics [notes](https://desagri.gov.in/divisions-cell/special-data-dissemination-standards-sdds/) that its national crop calendar is based on 1998–99 and is being renewed. These are broad references, not a validated crop calendar for every district in Maharashtra, Madhya Pradesh and Chhattisgarh. Before final training:
+## Baselines and evaluation
 
-- obtain district/state agricultural crop-calendar references;
-- verify whether the target yield series is season-labelled Kharif;
-- select a biologically meaningful forecast cutoff;
-- decide whether the model should predict at a fixed early-season date or after the full season;
-- record the month list and sowing-year mapping in metadata.
+The neural forecast is compared with:
 
-A yield forecast made using June–December observations is only available after those observations have occurred. Do not describe it as an early-season forecast unless the input window is truncated accordingly.
+1. Persistence: next month equals the most recent observed monthly modal price.
+2. Seasonal naive: next month equals the modal price from the same month one year earlier.
 
-The sequence builder expects one observation per district-month and retains only complete sequences for the configured month set. Partial sequences are excluded to guarantee consistent tensor dimensions. Alternative missing-month imputation should be a separately documented experiment.
+Report MAE, RMSE, R² and sMAPE in source units / percent. Also inspect market-level and state-level errors, sample counts, reporting days and arrival coverage. A pooled metric can hide weak or sparse individual mandis.
 
-## Splitting and leakage prevention
+## Chronological validation design
 
-Splits are chronological by sowing year and applied consistently across districts. The code defaults to train through 2018, validation 2019–2021, and test 2022 onward, matching the reference paper's year split. Adjust these cutoffs to the maize yield data coverage before running the experiment. These cutoffs are configurable and must be reconciled with actual data coverage before use.
+Default splits use the target month year:
 
-Temporal and lagged-yield scalers are fitted on training records only. Soil scaling is fitted on training districts only. Validation is used for early stopping and model selection. The test set must not be used to select checkpoints, hyperparameters, random seeds or feature sets.
+- Training: through 2019.
+- Validation: 2020–2021.
+- Test: 2022 onward.
 
-Lagged yield is joined by the exact preceding sowing year. A missing intermediate year remains missing; the pipeline does not silently use the last available year as a one-year lag.
+These boundaries are provisional and must be adjusted to source coverage and sample counts. The scaler is fitted only on training windows. The validation split chooses the checkpoint by RMSE in price units. The test split is not used for training, early stopping, feature selection or model selection.
 
-## Replication checklist
+## Data-quality decisions
 
-- [ ] Obtain district boundary polygons and record source/version/CRS.
-- [ ] Build a stable state-qualified district identifier and a historical district crosswalk.
-- [ ] Download yield statistics for maize and Kharif only; inspect missingness, units and revisions.
-- [ ] Download daily weather and satellite data for all target districts and required years.
-- [ ] Derive the paper's weather features and monthly NDVI/EVI summaries.
-- [ ] Validate crop calendar and prediction cutoff with agronomic sources.
-- [ ] Generate the district-month table and check completeness.
-- [ ] Generate soil matrices with identical property/depth order for every district.
-- [ ] Build chronological splits and inspect `metadata.json`.
-- [ ] Train the proposed model and all benchmarks with validation-only model selection.
-- [ ] Report MAE, RMSE, R² and a persistence (lagged-yield) baseline.
-- [ ] Evaluate across multiple seeds and report mean and dispersion; do not cherry-pick a test-best run.
-- [ ] Save predictions, configuration, scaler objects, package versions and data provenance.
+- Keep source raw JSON and extraction metadata.
+- Prefer market IDs over fuzzy market-name joins.
+- Require market-level source data; district aggregates do not stand in for individual mandis.
+- Exclude non-positive modal-price records.
+- When all min/modal/max values are present, enforce min ≤ modal ≤ max.
+- Aggregate daily modal price to a monthly median.
+- Aggregate arrivals separately at market × commodity × month. If the source reports arrivals at that coarser grain, the value may repeat across variety rows and must not be summed over varieties.
+- Preserve missing arrival values and report their coverage.
+- Do not interpolate missing modal prices for the active evaluation.
 
-## Important limitation
+## Data licence and intended use
 
-The repository does not contain the full raw yield, weather, vegetation and soil datasets. Creating the DeepMaize code path does not create maize labels or validate predictions. No empirical accuracy claim should be made until the data are assembled and the evaluation is run.
+CEDA's published API terms currently state that the API data may be downloaded, displayed or included in other products for non-commercial purposes at no cost, subject to CEDA citation and visual attribution requirements. The user should verify the current terms before each use. Commercial forecasting, customer-facing or business use must not rely on this API data without explicit permission or a separately suitable licence.
+
+## Research limitations
+
+- Agmarknet prices represent wholesale market reports rather than farm-gate prices.
+- The modal price is a reported market statistic, not the complete transaction distribution.
+- Reporting coverage varies over markets and time.
+- Market identity, variety naming and district boundaries can change; provider IDs and historical crosswalks require review.
+- Monthly median price is a different target from daily modal price and futures/forward prices.
+- No empirical accuracy claim is justified until real data have been downloaded, audited, modelled and evaluated on the chronological test split.
