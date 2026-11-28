@@ -144,6 +144,22 @@ python data/yield_data/prepare_maize_yield.py \
 
 The script preserves the source yield unit. Use `--yield-multiplier` only when you have confirmed a unit conversion, and record the source unit and conversion in your experiment notes. The script deliberately stops when multiple Kharif maize yield rows exist for one district-year; aggregate them using a documented method rather than silently averaging.
 
+## 6A. Agmarknet mandi prices and arrivals
+
+Download maize mandi price and arrival series separately from the yield labels. The downloader uses the public CEDA Agri Market Data API, whose portal attributes its data to the Directorate of Marketing & Inspection (DMI):
+
+```bash
+python data/market_data/download_agmarknet.py \
+  --start-date 2007-01-01 --end-date 2023-12-31 \
+  --states Maharashtra "Madhya Pradesh" Chhattisgarh \
+  --level district --calculation-type m \
+  --output-dir data/market_data/agmarknet
+```
+
+Use `--level market` for mandi-level detail where returned by the source, or `--level state` for a quick state-level coverage check. Use `--calculation-type d` for daily, `m` for monthly and `y` for annual observations. The script resolves maize from the live commodity catalogue, queries geography metadata, rate-limits/retries requests, archives raw JSON, and writes separate price and quantity CSVs plus a request log and provenance JSON.
+
+**Important:** Agmarknet is a source of wholesale prices and arrivals, not district crop-yield labels. The yield target still requires a suitable crop-statistics source. Keep the Agmarknet series out of the main DeepWheat-replication feature set initially; evaluate it later as a separately reported market-information extension after confirming the forecast cutoff, data coverage, district crosswalk and units. CEDA's published API terms currently restrict API use to non-commercial purposes and require attribution; check the [current terms](https://ceda.ashoka.edu.in/api-terms-conditions/) before use. Full instructions and caveats are in [docs/AGMARKNET_INGESTION.md](docs/AGMARKNET_INGESTION.md).
+
 ## 7. Build leakage-safe model datasets
 
 Monthly input schema:
