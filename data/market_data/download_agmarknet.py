@@ -295,7 +295,7 @@ def download(
     start_date: str,
     end_date: str,
     states: Iterable[str],
-    level: str = "district",
+    level: str = "market",
     calculation_type: str = "m",
     commodity: str = "maize",
     commodity_id: int | None = None,
@@ -454,7 +454,7 @@ def main() -> int:
     parser.add_argument("--end-date", default="2023-12-31", help="YYYY-MM-DD")
     parser.add_argument("--states", nargs="+", default=list(TARGET_STATES),
                         choices=list(TARGET_STATES))
-    parser.add_argument("--level", choices=("state", "district", "market"), default="district")
+    parser.add_argument("--level", choices=("state", "district", "market"), default="market")
     parser.add_argument("--calculation-type", choices=("d", "m", "y"), default="m",
                         help="d=daily, m=monthly, y=yearly")
     parser.add_argument("--commodity", default="maize")
