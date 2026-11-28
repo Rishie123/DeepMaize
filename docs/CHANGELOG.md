@@ -1,27 +1,17 @@
 # Changelog
 
-## DeepMaize adaptation (initial scaffold)
+## Market-price forecasting refactor
 
-- Added a separate maize/Kharif dataset builder; original wheat preprocessing is unchanged.
-- Added Central India configuration for Maharashtra, Madhya Pradesh and Chhattisgarh.
-- Added methodology notes covering model architecture, crop-calendar assumptions, data requirements and leakage controls.
-- Added unit tests for month parsing, sequence construction, incomplete months and duplicate records.
-- The model architecture is reused from the existing `CNN_RNN` implementation; its hyperparameters are a starting point, not maize-optimised values.
-- No raw maize dataset is included and no model training or empirical validation is claimed.
+- Changed the active research target from annual Kharif maize district yield to monthly mandi-level maize modal price.
+- Defined the prediction unit as market × commodity × variety × month and the initial forecast horizon as one calendar month.
+- Added a monthly panel builder that aggregates daily modal-price records, keeps price and arrival series distinct, and preserves market identity.
+- Added leakage-safe rolling 12-month price windows with chronological train/validation/test splits and training-only feature scaling.
+- Added a pooled LSTM with market-series embeddings and price-unit persistence/seasonal-naive baselines.
+- Added market-price metrics and prediction output files.
+- Rewrote the main project, methodology, architecture, ingestion and data dictionary documentation around price forecasting.
+- Kept older yield, weather and soil modules in the repository as legacy reference code; they are not used by the active forecasting workflow.
+- CEDA API terms and source credit requirements are documented; commercial use requires permission or a separately licensed data source.
 
-## Follow-up implementation hardening
+## Previous yield adaptation (legacy)
 
-- Corrected pandas object-column assignment for nested temporal sequences and soil matrices.
-- Corrected split-specific soil scaling bookkeeping and added train/validation/test integration coverage.
-- Added an architecture note documenting actual BiLSTM, self-attention, soil-CNN, lagged-yield and MLP tensor dimensions.
-- Corrected the methodology document to the 2018 / 2019–2021 / 2022+ default chronological split.
-- Removed a legacy manual NASA POWER network test from pytest auto-discovery; preserved it as a manual check script.
-- Changed CNN1D, Transformer and parallel CNN-LSTM baseline seed selection to use validation loss rather than held-out test R².
-
-- Added maize LSTM and BiLSTM no-attention configurations, plus neural and tree baseline configurations.
-- Added a sequence-to-flat converter for Random Forest, XGBoost and LightGBM.
-- Updated tree-based multi-seed selection to use validation RMSE; test results remain reporting-only.
-- Added a stand-alone persistence baseline report that inverse-transforms the lagged-yield feature.
-
-- Added data-quality attrition and district-coverage counts to dataset metadata.
-- Added a data dictionary covering source schemas, identifiers, feature ordering, units/provenance and split fields.
+The original branch work adapted DeepWheat's yield modelling pipeline to Kharif maize. Those files remain for research history but no longer define the active DeepMaize task.
