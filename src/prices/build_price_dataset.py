@@ -204,7 +204,7 @@ def build_price_dataset(
         "task": "monthly_maize_mandi_modal_price_forecasting",
         "prediction_unit": "market × variety × target month",
         "target": "monthly median of reported daily modal_price",
-        "target_unit": "provider-reported price unit; confirm source metadata",
+        "target_unit": "INR per quintal (verify against the downloaded provider metadata)",
         "forecast_horizon_months": 1,
         "lookback_months": window,
         "feature_columns": FEATURE_COLUMNS,
