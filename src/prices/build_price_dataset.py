@@ -135,12 +135,21 @@ def build_price_dataset(
             f"No samples with {window} consecutive history months. "
             "Check market-level coverage, monthly continuity and the selected dates."
         )
+    # Build the learned identity vocabulary from training data only. A market
+    # first appearing in validation/test must map to index 0 (unknown); creating
+    # a dedicated embedding for a never-trained test market would leave that
+    # embedding at its random initial value and disguise a cold-start failure.
+    training_series = sorted({
+        sample["series_id"] for sample in samples
+        if sample["year"] <= train_end
+    })
+    if not training_series:
+        raise ValueError("No market series have training-window samples")
     series_vocab = {
-        value: index + 1
-        for index, value in enumerate(sorted({s["series_id"] for s in samples}))
+        value: index + 1 for index, value in enumerate(training_series)
     }
     for sample in samples:
-        sample["series_index"] = series_vocab[sample["series_id"]]
+        sample["series_index"] = series_vocab.get(sample["series_id"], 0)
 
     split_masks = {
         "train": lambda s: s["year"] <= train_end,
@@ -201,6 +210,11 @@ def build_price_dataset(
         "feature_columns": FEATURE_COLUMNS,
         "series_vocabulary": series_vocab,
         "n_series": len(series_vocab),
+        "unknown_series_index": 0,
+        "training_series_vocabulary_only": True,
+        "cold_start_series_in_val_or_test": int(sum(
+            sample["series_index"] == 0 for sample in samples
+        )),
         "split_years": split_years,
         "split_rows": split_rows,
         "unique_series_per_split": split_series,
