@@ -213,7 +213,7 @@ def prepare_price_panel(
         "source_quantity_file": str(quantities_path) if quantities_path else None,
         "commodity_filter": commodity_filter,
         "target": "monthly median of reported daily modal_price",
-        "target_unit": "source-reported currency per commodity quantity unit; verify provider metadata",
+        "target_unit": "INR per quintal (verify against the downloaded provider metadata)",
         "aggregation": {
             "modal_price": "median of daily modal prices within market × variety × month",
             "min_price": "median of daily minimum prices within month",
