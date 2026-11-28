@@ -1,121 +1,95 @@
-# DeepMaize data dictionary
+# DeepMaize price pipeline data dictionary
 
-This document defines the tabular interfaces between data collection, preprocessing, model training and evaluation. Retain the original provider's file, download date, units and processing metadata alongside every experiment.
+## 1. Raw Agmarknet/CEDA downloads
 
-## 1. Identifiers
-
-| Field | Meaning | Rule |
-|---|---|---|
-| `DISTRICT_ID` | State-qualified district join key | Uppercase `STATE_DISTRICT`, e.g. `MAHARASHTRA_NAGPUR` |
-| `State` | State name from district boundary layer | One of MAHARASHTRA, MADHYA PRADESH, CHHATTISGARH |
-| `District` | District name from boundary layer | Uppercase, trimmed |
-| `YEAR` | Calendar year of the monthly feature observation | Integer |
-| `MONTH` | Calendar month of the feature observation | Integer 1–12 |
-| `sowing_year` | Crop season's sowing year / year label | Integer; Kharif 2019-20 is normally mapped to 2019, subject to source semantics |
-
-State-qualified identifiers prevent two states' identically named districts being accidentally merged. They do **not** solve historical boundary changes. A district crosswalk is required when historical yield labels use a different district vintage from the weather/soil polygons.
-
-## 2. Monthly temporal feature table
-
-One row per `DISTRICT_ID × YEAR × MONTH`.
-
-| Feature family | Source field | Meaning |
-|---|---|---|
-| Weather | `PRECTOTCORR` | Corrected precipitation |
-| Weather | `T2M_MAX` | Daily maximum 2 m air temperature |
-| Weather | `T2M_MIN` | Daily minimum 2 m air temperature |
-| Weather | `T2M` | Daily mean 2 m air temperature |
-| Weather | `RH2M` | Relative humidity at 2 m |
-| Weather | `ALLSKY_SFC_SW_DWN` | All-sky surface shortwave radiation |
-| Weather | `WS10M` | Wind speed at 10 m |
-| Weather | `QV2M` | Specific humidity at 2 m |
-| Weather | `PS` | Surface pressure |
-| Derived weather | `max_vpd` | Maximum vapour-pressure deficit, kPa |
-| Derived weather | `min_vpd` | Minimum vapour-pressure deficit, kPa |
-| Vegetation | `NDVI` | Normalised Difference Vegetation Index |
-| Vegetation | `EVI` | Enhanced Vegetation Index |
-
-The intended temporal feature count is 13 when all variables are available. Weather and vegetation inputs are merged by district and date using an outer join, then aggregated separately to monthly means. The builder rejects a district-season when any configured month has a non-finite feature value.
-
-**Units:** NASA POWER response headers/metadata and the exact API parameter documentation for the requested temporal product are authoritative. Store that metadata with the downloaded CSV. Do not infer unit conversions from column names. Confirm temperature, precipitation, radiation, humidity, wind and pressure units before interpreting model coefficients or transferring hyperparameters. NDVI/EVI quality screening, valid range, scale-factor application and fill-value handling must be completed in the MODIS/GEE export before monthly aggregation.
-
-## 3. Soil feature matrix
-
-One static matrix per district, represented in each district-season row as `soil_features` with shape `[8, 6]`.
-
-| Property index | Soil property | Depth indices |
-|---:|---|---|
-| 0 | Soil Organic Carbon | All six depths, shallow to deep |
-| 1 | Soil pH | All six depths |
-| 2 | Bulk Density | All six depths |
-| 3 | Sand Content | All six depths |
-| 4 | Silt Content | All six depths |
-| 5 | Clay Content | All six depths |
-| 6 | Cation Exchange Capacity | All six depths |
-| 7 | Total Nitrogen | All six depths |
-
-Depth index order:
-
-1. 0–5 cm
-2. 5–15 cm
-3. 15–30 cm
-4. 30–60 cm
-5. 60–100 cm
-6. 100–200 cm
-
-The matrix orientation is **property × depth**, not depth × property. SoilGrids provider units and property-specific scale factors must be preserved in provenance notes. The downloader computes district polygon means; inspect failed and partial WCS requests. The wrangler rejects missing or non-finite property/depth cells.
-
-## 4. Yield table
-
-The raw yield preparation input is long format with these fields (aliases can be passed on the CLI):
-
-| Raw field | Meaning |
-|---|---|
-| `State` | State name |
-| `District` | District name |
-| `Crop` | Crop; filtered to labels containing MAIZE |
-| `Season` | Season; filtered to labels containing KHARIF |
-| `Year` | Season year, e.g. 2019 or 2019-20 |
-| `Yield` | Source-reported yield |
-
-The prepared yield table has one row per `DISTRICT_ID × sowing_year`:
+The raw download directory preserves API JSON responses alongside standardised CSVs.
 
 | Field | Meaning |
 |---|---|
-| `DISTRICT_ID` | State-qualified district key |
-| `sowing_year` | Starting year of Kharif season |
-| `Yield` | Source yield, unchanged apart from optional explicit multiplier |
+| source | CEDA Agri Market Data source attribution |
+| state, state_id | State label and provider identifier |
+| district, district_id | District label and provider identifier |
+| market, market_id | Mandi label and provider identifier when returned |
+| commodity, commodity_id | Commodity label and provider identifier |
+| variety | Variety label when returned; missing values become UNSPECIFIED in the monthly panel |
+| date | Observation date or source period |
+| min_price | Reported minimum wholesale price |
+| max_price | Reported maximum wholesale price |
+| modal_price | Reported modal wholesale price; the forecasting target |
+| arrival_qty | Reported quantity arrivals; an optional historical predictor |
 
-The target value remains in the original source unit in the generated dataset. Record the source unit and any conversion; do not mix yield in kg/ha, t/ha or other units. The preparation script stops when there are multiple records per district-year, because choosing an aggregation method is a substantive data decision.
+The active workflow is intended to run at market granularity. It requires market_id or market so that two mandis in the same district remain separate time series.
 
-## 5. Model dataset CSVs
+## 2. Monthly panel
 
-The sequence builder writes `train.csv`, `val.csv`, `test.csv`. Their key columns are:
+One row per series_id × period. The series identity includes state, district, market identity, commodity and variety.
 
-| Column | Stored value |
+| Field | Meaning |
 |---|---|
-| `DISTRICT_ID` | District key |
-| `sowing_year` | Kharif season year |
-| `feature_sequence` | Nested list shaped `[number_of_months, number_of_temporal_features]`; temporal values are StandardScaler-transformed |
-| `Yield` | Unscaled target in the source yield unit |
-| `past_yield` | Previous-year district yield after StandardScaler transform |
-| `soil_features` | Optional nested list shaped `[8, 6]`; property-wise standardised using training districts only |
+| state | State name |
+| district | District name |
+| MARKET_KEY | id:<market_id> where available, otherwise name:<normalised_market> |
+| market | Market label |
+| commodity | Commodity label |
+| variety | Variety label, or UNSPECIFIED |
+| period | Month start date |
+| series_id | Stable composite key for market × commodity × variety |
+| modal_price | Median of daily modal prices reported in that month; target |
+| min_price | Median of daily minimum prices reported in the month |
+| max_price | Median of daily maximum prices reported in the month |
+| arrival_qty | Sum of arrival reports at market × commodity × month, when available |
+| reporting_days | Number of distinct daily records in the monthly price aggregation |
+| daily_price_rows | Number of raw price records contributing to the monthly aggregation |
 
-All scalers are fit on training data only and saved alongside the split files. Validation and test values are transformed with those same saved scalers. The target `Yield` is not standardised by this pipeline.
+Because arrival quantity may be reported for a market × commodity rather than variety, it can be repeated across variety rows. Never aggregate this repeated value across varieties.
 
-## 6. Split metadata and data attrition
+## 3. Forecast features
 
-`metadata.json` records the configured crop calendar, feature order, soil dimensions, split years and `data_quality` counts:
+Every historical month in the 12-month lookback is transformed into nine numeric features:
 
-- raw monthly rows and rows inside the configured months;
-- candidate district-year groups and groups with every configured month;
-- complete finite temporal sequences;
-- yield rows and district-years with a matching yield label;
-- district-years with the exact previous year's yield available;
-- final records and unique districts per split.
+| Feature | Definition |
+|---|---|
+| log_modal_price | log(1 + monthly median modal price) |
+| log_min_price | log(1 + monthly median minimum price) |
+| log_max_price | log(1 + monthly median maximum price) |
+| log_arrival_qty | log(1 + monthly market arrival quantity); missing treated as zero |
+| arrival_missing | 1 if no arrival value was reported, otherwise 0 |
+| history_month_sin | Sine encoding of historical calendar month |
+| history_month_cos | Cosine encoding of historical calendar month |
+| forecast_month_sin | Sine encoding of known target calendar month |
+| forecast_month_cos | Cosine encoding of known target calendar month |
 
-Inspect these counts before training. A high attrition rate can change which districts and years are represented, and should be reported. The builder's strict complete-month rule is intended to prevent ragged sequences, not to claim that excluded records are random.
+The target is log(1 + modal_price) for optimisation and is inverse transformed before reporting. Continuous features are standardised with a scaler fitted on training data only.
 
-## 7. Provenance checklist
+## 4. Prepared model splits
 
-For each source, preserve the exact download/export date, URL or table identifier, data release, spatial reference system, temporal range, unit metadata, quality flags, fill-value handling, and all transformations. For district data, preserve the polygon release and historical name/boundary crosswalk. For yield data, record crop/season filters, source-reported unit, aggregation rules and any district-year exclusions.
+The dataset builder writes train.npz, val.npz and test.npz. Each split contains:
+
+| Array | Meaning |
+|---|---|
+| X | Standardised sequences, shape samples × lookback × 9 |
+| y_log | log(1 + target modal price) |
+| y_price | Target monthly modal price in source units |
+| last_price | Last historical modal price for persistence |
+| seasonal_naive_price | Modal price 12 months earlier (for a 12-month lookback) |
+| series_index | Learned categorical embedding index for market × variety |
+| period | Forecast target month |
+| series_id | Composite market × commodity × variety key |
+| state, district, market, variety | Output labels for reporting |
+
+Split boundaries apply to the target period. A training observation never includes a feature from its own target month.
+
+## 5. Units and provenance
+
+Price and arrival units must be recorded from source metadata. Do not assume that arrival quantities use the same unit for all commodities. Preserve source query dates, API metadata, raw response files, extraction date, CEDA attribution and data licence terms with each experiment.
+
+Agmarknet modal prices are wholesale market quotations. They are not the same as a farmer's realised sale price or retail prices.
+
+## 6. Quality checks and exclusions
+
+- Missing/non-positive modal prices are excluded from the monthly panel.
+- When min, modal and max are all present, rows violating min ≤ modal ≤ max are excluded.
+- Duplicate series × month rows are rejected by the dataset builder.
+- Lookback samples are retained only if all preceding calendar months exist.
+- Arrival missingness is represented explicitly; no arrival value is fabricated.
+- Historical district/market names should be reviewed where provider identifiers are absent or have changed.
