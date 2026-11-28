@@ -93,3 +93,6 @@ Thumbs.db
 *.out
 *.run.xml
 *.synctex.gz
+# Downloaded Agmarknet/CEDA responses and exports
+data/market_data/agmarknet/
+data/market_data/agmarknet_smoke/
